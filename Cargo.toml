@@ -5,6 +5,13 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# features starting with hal- are hardware abstraction layer backings,
+# and there should be exactly one of them enabled at a time. In theory
+# this should be enforced already.
+[features]
+default = ["hal-virt"]
+hal-virt = []
+
 [dependencies]
 
 [profile.dev]

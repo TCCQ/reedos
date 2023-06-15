@@ -25,6 +25,7 @@ pub mod trap;
 pub mod vm;
 pub mod process;
 pub mod file;
+pub mod hal;
 
 
 use crate::hw::hartlocal;
@@ -153,7 +154,7 @@ fn main() -> ! {
         log!(Debug, "Testing phys page extent allocation and freeing...");
         vm::test_phys_page();
         log!(Debug, "Successful phys page extent allocation and freeing...");
-        
+
         log!(Debug, "Initializing VIRTIO blk device...");
         if let Err(e) = device::virtio::virtio_block_init() {
             println!("{:?}", e);
@@ -184,7 +185,7 @@ fn main() -> ! {
         log!(Info, "Completed all hart{} local initialization", read_tp());
 
     }
-    
+
     // we want to test multiple processes with multiple harts
     process::test_multiprocess_syscall();
     //loop {}
