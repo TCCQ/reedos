@@ -6,6 +6,8 @@ pub mod virt;
 
 const HAL: None;
 
+// TODO add a HAL trait for interupts
+
 pub trait HALSerial {
     // start serial stuff. These should be used by most of the kernel
     // unless an extension / module takes control of the primary
@@ -37,6 +39,9 @@ pub trait HALTimer {
     /// TODO how to set a meaning of a tick that is reasonable across
     /// hardwares. RISC-V uses mtime, which is not even fully defined
     /// there. See priv spec.
+    ///
+    /// The natural thing is to do realtime, but I'm not sure how to
+    /// convert mtime to realtime
     fn timer_set(ticks: u64);
 
     // TODO timer clear? timers are one time only, so ideally don't
