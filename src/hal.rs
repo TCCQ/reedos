@@ -1,10 +1,12 @@
 /// This module should contain the details of the hardware abstraction
 /// layer
 
+use bitflags::bitflags;
+
 #[cfg(feature = "hal-virt")]
 pub mod virt;
 
-const HAL: None;
+struct HAL {}
 
 // TODO add a HAL trait for interupts
 
@@ -28,6 +30,14 @@ pub trait HALSerial {
 
     /// This is a spin-blocking read from the primary serial port.
     fn serial_read_byte() -> u8;
+
+    /// This is a convience function for non-streaming prints. It is
+    /// preffered when possible.
+    fn serial_put_string(s: &str);
+
+    /// This is a convience wrapper for reading a known number of
+    /// bytes. It is prefered when possible.
+    fn serial_read_bytes(buf: &mut [u8], num: u32);
 }
 
 pub trait HALTimer {
@@ -68,24 +78,26 @@ pub type PageTable = Address;
 pub enum HALVMError {
     MisalignedAddress,
     FailedAllocation,
-    UnsupportedFlag,
-    IgnoredFlag,                // TODO should this return something?
+    UnsupportedFlags(u32),      // Returns set of unsupported flags
+    IgnoredFlags(u32),           // Returns a set of ignored flags
     // TODO others?
 }
 
+bitflags! {
 /// TODO how do I make this general?
 ///
 /// Things that you can request of a page mapping. Not all may be
 /// valid for all hardware. See associated error.
-pub type Flags = /* TODO type? */ {
-    Read,
-    Write,
-    Execute,
-    Valid,
-    User,
-    Global,
-    Accessed,
-    Dirty,
+    struct PageMapFlags: u32 {
+        const Read     = 0x00_00_00_01;
+        const Write    = 0x00_00_00_02;
+        const Execute  = 0x00_00_00_04;
+        const Valid    = 0x00_00_00_08;
+        const User     = 0x00_00_00_10;
+        const Global   = 0x00_00_00_20;
+        const Accessed = 0x00_00_00_40;
+        const Dirty    = 0x00_00_00_80;
+    }
 }
 
 pub trait HALVM {
@@ -101,9 +113,6 @@ pub trait HALVM {
     const OFFSET_BITS: usize;
     // TODO compiletime assert that these match. (1 << OFFSET_BITS) == PAGE_SIZE
 
-    // TODO can I force all of these to be usizes? unclear
-
-
     /// Call once before pgtbl use
     fn pgtbl_setup();
 
@@ -117,7 +126,7 @@ pub trait HALVM {
     /// Insert the given page into the given table at the given
     /// location. Flags should be specified here, although it's
     /// totally not clear how to make that general. TODO
-    fn pgtbl_insert_leaf(pgtbl: PageTable, phys: Address, virt: Address, flags: Flags) -> Result<(), HALVMError>;
+    fn pgtbl_insert_leaf(pgtbl: PageTable, phys: Address, virt: Address, flags: PageMapFlags) -> Result<(), HALVMError>;
 
     /// Remove the mapping at the address in the given page table
     fn pgtbl_remove(pgtbl: PageTable, virt: Address) -> Result<(), HALVMError>;

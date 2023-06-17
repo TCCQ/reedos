@@ -16,42 +16,151 @@ use core::arch::asm;
 
 use super::*;
 
+const DEBUG_EID: u32 = 0x4442434E;
+
+const SBI_SUCCESS: i32               =  0; // Completed successfully
+const SBI_ERR_FAILED: i32            = -1; // Failed
+const SBI_ERR_NOT_SUPPORTED: i32     = -2; // Not supported
+const SBI_ERR_INVALID_PARAM: i32     = -3; // Invalid parameter(s)
+const SBI_ERR_DENIED: i32            = -4; // Denied or not allowed
+const SBI_ERR_INVALID_ADDRESS: i32   = -5; // Invalid address(s)
+const SBI_ERR_ALREADY_AVAILABLE: i32 = -6; // Already available
+const SBI_ERR_ALREADY_STARTED: i32   = -7; // Already started
+const SBI_ERR_ALREADY_STOPPED: i32   = -8; // Already stopped
+const SBI_ERR_NO_SHMEM: i32          = -9; // Shared memory not available
+
+fn opensbi_call(eid: u32, fid: u32, a0: u32, a1: u32, a2: u32, a3: u32) -> (i32, u32) {
+    let err: u32;
+    let out: u32;
+    unsafe {
+        asm!(
+            "ecall",
+            inout("a0") a0,
+            inout("a1") a1,
+            in("a2") a2,
+            in("a3") a3,
+            in("a6") fid,
+            in("a7") eid,
+        );
+    }
+    (a0 as i32, a1)                    // err, val
+}
+
 impl HALSerial for HAL {
     // TODO use the debug version extension instead
     fn serial_setup() {
-        // empty, opensbi does it for us
-        //
-        // TODO do extension checking to make sure opensbi has the
-        // extension for consoles
+        // probe for opensbi debug console extension
+        let (err, val) = opensbi_call(0x10, 3, DEBUG_EID, 0, 0, 0);
+        match err {
+            0 => {
+                // all good!
+                match val {
+                    0 => {
+                        panic!("Opensbi does not support debug logging!");
+                    },
+                    1 => {
+                        // exactly as we want
+                    },
+                    _ => {
+                        panic!("Unexpected opensbi return code!");
+                    }
+                }
+            },
+            SBI_ERR_FAILED | SBI_ERR_NOT_SUPPORTED | SBI_ERR_DENIED => {
+                panic!("Unsupported base opensbi extension!");
+            },
+            _ => {
+                panic!("Unexpected opensbi error code!");
+            }
+        }
     }
 
     fn serial_put_char(c: char) {
         let mut buffer: [u8; 4];
-        let slice = c.encode_utf8(&buffer);
+        let slice = c.encode_utf8(&mut buffer);
         for iter in slice.as_bytes() {
             let val: u8 = iter.clone();
-            asm!(
-                "mv a0, {value}",
-                "li a6, 0",
-                "li a7, 1",
-                "scall",
-                value = in(reg) val,
-            );
             // opensbi console putchar
+            let (err, _) = opensbi_call(DEBUG_EID, 2, val as u32, 0, 0, 0);
+            match err {
+                0 => {},
+                SBI_ERR_FAILED => {
+                    panic!("Failed to write to console!");
+                },
+                _ => {
+                    panic!("Unexpected opensbi error code!");
+                }
+            }
         }
     }
 
     fn serial_read_byte() -> u8 {
-        let val: u8;
-        asm!(
-            "mv {value}, a0",
-            "li a6, 0",
-            "li a7, 2",
-            "scall",
-            value = out(reg) val,
-        );
+        let val: u8 = 0;
         // opensbi console getchar
+        let (err, ret) = opensbi_call(DEBUG_EID, 1,
+                     1,         // 1 byte
+                     ((&mut val as *mut u8 as usize) & 0xFF_FF_FF_FF) as u32, // low bits
+                     ((&mut val as *mut u8 as usize) >> 32) as u32,                  // high bits
+                     0,
+        );
+        match err {
+            SBI_SUCCESS => {},
+            SBI_ERR_FAILED => {
+                panic!("Opensbi I/O fail on read");
+            }
+            SBI_ERR_INVALID_PARAM => {
+                panic!("Opensbi didn't like arguments to console read");
+            },
+            _ => {
+                panic!("Unexpected opensbi error code");
+            }
+        }
         val
+    }
+
+    fn serial_put_string(s: &str) {
+        let (err, ret) = opensbi_call(DEBUG_EID, 1,
+                     s.len() as u32,         // 1 byte
+                     ((s.as_ptr() as usize) & 0xFF_FF_FF_FF) as u32, // low bits
+                     ((s.as_ptr() as usize) >> 32) as u32,                  // high bits
+                     0,
+        );
+        match err {
+            SBI_SUCCESS => {},
+            SBI_ERR_FAILED => {
+                panic!("Opensbi I/O fail on write");
+            }
+            SBI_ERR_INVALID_PARAM => {
+                panic!("Opensbi didn't like arguments to console write");
+            },
+            _ => {
+                panic!("Unexpected opensbi error code");
+            }
+        }
+
+    }
+
+    // TODO pass errors back up
+    fn serial_read_bytes(buf: &mut [u8], num: u32) {
+        let (err, ret) = opensbi_call(DEBUG_EID, 1,
+                     num,         // 1 byte
+                     ((buf.as_mut_ptr() as usize) & 0xFF_FF_FF_FF) as u32, // low bits
+                     ((buf.as_mut_ptr() as usize) >> 32) as u32,                  // high bits
+                     0,
+        );
+        match err {
+            SBI_SUCCESS => {},
+            SBI_ERR_FAILED => {
+                panic!("Opensbi I/O fail on read");
+            }
+            SBI_ERR_INVALID_PARAM => {
+                panic!("Opensbi didn't like arguments to console read");
+            },
+            _ => {
+                panic!("Unexpected opensbi error code");
+            }
+        }
+
     }
 }
 
