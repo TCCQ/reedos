@@ -29,9 +29,7 @@ const SBI_ERR_ALREADY_STARTED: i32   = -7; // Already started
 const SBI_ERR_ALREADY_STOPPED: i32   = -8; // Already stopped
 const SBI_ERR_NO_SHMEM: i32          = -9; // Shared memory not available
 
-fn opensbi_call(eid: u32, fid: u32, a0: u32, a1: u32, a2: u32, a3: u32) -> (i32, u32) {
-    let err: u32;
-    let out: u32;
+fn opensbi_call(eid: u32, fid: u32, mut a0: u32, mut a1: u32, a2: u32, a3: u32) -> (i32, u32) {
     unsafe {
         asm!(
             "ecall",
@@ -47,7 +45,6 @@ fn opensbi_call(eid: u32, fid: u32, a0: u32, a1: u32, a2: u32, a3: u32) -> (i32,
 }
 
 impl HALSerial for HAL {
-    // TODO use the debug version extension instead
     fn serial_setup() {
         // probe for opensbi debug console extension
         let (err, val) = opensbi_call(0x10, 3, DEBUG_EID, 0, 0, 0);
@@ -76,7 +73,7 @@ impl HALSerial for HAL {
     }
 
     fn serial_put_char(c: char) {
-        let mut buffer: [u8; 4];
+        let mut buffer: [u8; 4] = [0; 4];
         let slice = c.encode_utf8(&mut buffer);
         for iter in slice.as_bytes() {
             let val: u8 = iter.clone();
@@ -95,9 +92,9 @@ impl HALSerial for HAL {
     }
 
     fn serial_read_byte() -> u8 {
-        let val: u8 = 0;
+        let mut val: u8 = 0;
         // opensbi console getchar
-        let (err, ret) = opensbi_call(DEBUG_EID, 1,
+        let (err, _ret) = opensbi_call(DEBUG_EID, 1,
                      1,         // 1 byte
                      ((&mut val as *mut u8 as usize) & 0xFF_FF_FF_FF) as u32, // low bits
                      ((&mut val as *mut u8 as usize) >> 32) as u32,                  // high bits
@@ -119,7 +116,7 @@ impl HALSerial for HAL {
     }
 
     fn serial_put_string(s: &str) {
-        let (err, ret) = opensbi_call(DEBUG_EID, 1,
+        let (err, _ret) = opensbi_call(DEBUG_EID, 1,
                      s.len() as u32,         // 1 byte
                      ((s.as_ptr() as usize) & 0xFF_FF_FF_FF) as u32, // low bits
                      ((s.as_ptr() as usize) >> 32) as u32,                  // high bits
@@ -142,7 +139,7 @@ impl HALSerial for HAL {
 
     // TODO pass errors back up
     fn serial_read_bytes(buf: &mut [u8], num: u32) {
-        let (err, ret) = opensbi_call(DEBUG_EID, 1,
+        let (err, _ret) = opensbi_call(DEBUG_EID, 1,
                      num,         // 1 byte
                      ((buf.as_mut_ptr() as usize) & 0xFF_FF_FF_FF) as u32, // low bits
                      ((buf.as_mut_ptr() as usize) >> 32) as u32,                  // high bits
@@ -176,9 +173,31 @@ impl HALTimer for HAL {
 }
 
 impl HALVM for HAL {
+    fn pgtbl_setup() {
+        todo!()
+    }
 
+    fn pgtbl_new_empty() -> Result<PageTable, HALVMError> {
+        todo!()
+    }
+
+    fn pgtbl_deep_copy(src: PageTable, dest: PageTable) -> Result<(), HALVMError> {
+        todo!()
+    }
+
+    fn pgtbl_insert_leaf(pgtbl: PageTable, phys: Address, virt: Address, flags: PageMapFlags) -> Result<(), HALVMError> {
+        todo!()
+    }
+
+    fn pgtbl_remove(pgtbl: PageTable, virt: Address) -> Result<(), HALVMError> {
+        todo!()
+    }
 }
 
 impl HALBacking for HAL {
-
+    fn global_setup() {
+        Self::serial_setup();
+        // Self::timer_setup();
+        // Self::pgtbl_setup();
+    }
 }

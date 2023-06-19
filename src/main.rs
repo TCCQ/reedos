@@ -10,6 +10,7 @@
 #![feature(box_into_inner)]
 #![feature(never_type)]
 #![allow(dead_code)]
+// #![allow(unused_variables)]
 use core::cell::OnceCell;
 use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
@@ -17,6 +18,8 @@ extern crate alloc;
 
 #[macro_use]
 pub mod log;
+// ^ has to come first cause of ordered macro scoping
+
 pub mod asm;
 pub mod device;
 pub mod hw;
@@ -30,11 +33,11 @@ pub mod hal;
 
 use crate::hw::hartlocal;
 use crate::vm::ptable::PageTable;
-use crate::device::uart;
 use crate::device::plic;
 use crate::hw::param;
 use crate::hw::riscv::*;
 use crate::lock::condition::ConditionVar;
+use crate::hal::*;
 
 // sync init accross harts
 static mut GLOBAL_INIT_FLAG: MaybeUninit<ConditionVar> = MaybeUninit::uninit();
@@ -61,6 +64,7 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
+/*
 /// This gets called from entry.S and runs on each hart.
 /// Run configuration steps that will allow us to run the
 /// kernel in supervisor mode.
@@ -109,11 +113,13 @@ pub extern "C" fn _start() {
     // Now return to sup mode and jump to main().
     call_mret();
 }
+*/
 
 // Primary kernel bootstrap function.
 // We ensure that we only initialize kernel subsystems
 // one time by only doing so on hart0.
-fn main() -> ! {
+#[no_mangle]
+pub extern "C" fn main() -> ! {
     // We only bootstrap on hart0.
     let id = read_tp();
 
@@ -123,7 +129,8 @@ fn main() -> ! {
     }
 
     if id == 0 {
-        uart::init();
+        hal::HAL::global_setup();
+        // uart::init();
         println!("{}", param::BANNER);
         log!(Info, "Bootstrapping on hart0...");
         trap::init();

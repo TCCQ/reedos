@@ -6,7 +6,7 @@ use bitflags::bitflags;
 #[cfg(feature = "hal-virt")]
 pub mod virt;
 
-struct HAL {}
+pub struct HAL {}
 
 // TODO add a HAL trait for interupts
 
@@ -79,7 +79,6 @@ pub enum HALVMError {
     MisalignedAddress,
     FailedAllocation,
     UnsupportedFlags(u32),      // Returns set of unsupported flags
-    IgnoredFlags(u32),           // Returns a set of ignored flags
     // TODO others?
 }
 
@@ -88,7 +87,7 @@ bitflags! {
 ///
 /// Things that you can request of a page mapping. Not all may be
 /// valid for all hardware. See associated error.
-    struct PageMapFlags: u32 {
+    pub struct PageMapFlags: u32 {
         const Read     = 0x00_00_00_01;
         const Write    = 0x00_00_00_02;
         const Execute  = 0x00_00_00_04;
@@ -100,18 +99,11 @@ bitflags! {
     }
 }
 
+const PAGE_SIZE: usize = 4096;
+const PAGE_OFFSET: usize = 12;
+
 pub trait HALVM {
     // Page table stuff
-    //
-    // TODO what are the best types for this kind of stuff? Should I
-    // make wrapper types for addresses and pages and whatnot, or
-    // should I just use usizes?
-
-    /// same info twice, how big is a page? Number of bytes and number
-    /// of offset bits.
-    const PAGE_SIZE: usize;
-    const OFFSET_BITS: usize;
-    // TODO compiletime assert that these match. (1 << OFFSET_BITS) == PAGE_SIZE
 
     /// Call once before pgtbl use
     fn pgtbl_setup();

@@ -1,5 +1,5 @@
 //! Kernel trap handlers.
-use crate::device::{clint, plic, uart, virtio};
+use crate::device::{clint, plic, virtio};
 use crate::hw::{riscv, param};
 
 use crate::log;
@@ -91,6 +91,7 @@ fn s_extern() {
             // I intentionally don't hold the lock here to
             // allow printing. Normally we shouldn't print
             // here
+            /*
             let input = unsafe {
                 match uart::WRITER.lock().get() {
                     Some(i) => i,
@@ -105,6 +106,8 @@ fn s_extern() {
                  char::from_u32(input as u32).expect(
                      "Illformed UART input character!"
                  ));
+            */
+            log!(Debug, "Ignored uart input. Consider buffering inside HAL");
             unsafe {
                 plic::PLIC.get().unwrap().complete(irq)
             };
