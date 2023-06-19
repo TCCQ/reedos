@@ -13,6 +13,7 @@ default = ["hal-virt"]
 hal-virt = []
 
 [dependencies]
+bitflags = "2.3.2"
 
 [profile.dev]
 panic = "abort"
