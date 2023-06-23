@@ -7,7 +7,8 @@
         .section .text.entry
         .global _entry
 _entry:
-        csrr a1, mhartid
+        ## csrr a1, mhartid
+        mv a1, a0               #opensbi loads hartid into a0, hopefully uboot does the same
         li a0, 0x3000           #2 page stack + guard page
         mul a1, a1, a0          #offset by hart id
         .extern _stacks_end

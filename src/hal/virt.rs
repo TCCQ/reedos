@@ -12,11 +12,12 @@
 //
 // add return value checking for opensbi calls
 
-use core::arch::asm;
+use core::arch::{asm, global_asm};
 
 use super::*;
 
 const DEBUG_EID: u32 = 0x4442434E;
+const BASE_EID: u32 = 0x10;
 
 const SBI_SUCCESS: i32               =  0; // Completed successfully
 const SBI_ERR_FAILED: i32            = -1; // Failed
@@ -29,25 +30,57 @@ const SBI_ERR_ALREADY_STARTED: i32   = -7; // Already started
 const SBI_ERR_ALREADY_STOPPED: i32   = -8; // Already stopped
 const SBI_ERR_NO_SHMEM: i32          = -9; // Shared memory not available
 
-fn opensbi_call(eid: u32, fid: u32, mut a0: u32, mut a1: u32, a2: u32, a3: u32) -> (i32, u32) {
+fn _opensbi_call(eid: usize, fid: usize, mut a0: usize, mut a1: usize, a2: usize, a3: usize) -> (i32, u32) {
     unsafe {
         asm!(
             "ecall",
+            in("a7") eid,
+            in("a6") fid,
             inout("a0") a0,
             inout("a1") a1,
             in("a2") a2,
             in("a3") a3,
-            in("a6") fid,
-            in("a7") eid,
         );
     }
-    (a0 as i32, a1)                    // err, val
+    (a0 as i32, a1 as u32)
 }
+
+
+fn opensbi_call(eid: u32, fid: u32, a0: u32, a1: u32, a2: u32, a3: u32) -> (i32, u32) {
+    _opensbi_call(eid as usize, fid as usize, a0 as usize, a1 as usize, a2 as usize, a3 as usize)
+}
+
+global_asm!(
+    "_opensbi_call:",
+    "mv a7, a0",
+    "mv a6, a1",
+    "mv a0, a2",
+    "mv a1, a3",
+    "mv a2, a4",
+    "mv a3, a5",
+    "ecall",
+    "ret",
+);
+
+// fn opensbi_call(eid: u32, fid: u32, mut a0: u32, mut a1: u32, a2: u32, a3: u32) -> (i32, u32) {
+//     unsafe {
+//         asm!(
+//             "ecall",
+//             inout("a0") a0,
+//             inout("a1") a1,
+//             in("a2") a2,
+//             in("a3") a3,
+//             in("a6") fid,
+//             in("a7") eid,
+//         );
+//     }
+//     (a0 as i32, a1)                    // err, val
+// }
 
 impl HALSerial for HAL {
     fn serial_setup() {
         // probe for opensbi debug console extension
-        let (err, val) = opensbi_call(0x10, 3, DEBUG_EID, 0, 0, 0);
+        let (err, val) = opensbi_call(BASE_EID, 3, DEBUG_EID, 0, 0, 0);
         match err {
             0 => {
                 // all good!
@@ -116,7 +149,7 @@ impl HALSerial for HAL {
     }
 
     fn serial_put_string(s: &str) {
-        let (err, _ret) = opensbi_call(DEBUG_EID, 1,
+        let (err, _ret) = opensbi_call(DEBUG_EID, 0,
                      s.len() as u32,         // 1 byte
                      ((s.as_ptr() as usize) & 0xFF_FF_FF_FF) as u32, // low bits
                      ((s.as_ptr() as usize) >> 32) as u32,                  // high bits
@@ -196,6 +229,7 @@ impl HALVM for HAL {
 
 impl HALBacking for HAL {
     fn global_setup() {
+        assert!(opensbi_call(BASE_EID, 0, 0, 0, 0, 0).1 == (1<<24) | (0 & 0xFF_FF_FF), "Wrong sbi version");
         Self::serial_setup();
         // Self::timer_setup();
         // Self::pgtbl_setup();

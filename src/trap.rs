@@ -28,10 +28,10 @@ const S_EXTERN_IRQ: u64 = 0x9 | ( 1 << 63);
 
 /// Write the supervisor trap vector to stvec register on each hart.
 pub fn init() {
-    riscv::write_stvec(__strapvec as usize);
+//     riscv::write_stvec(__strapvec as usize);
 }
 
-/// Machine mode trap handler.
+// // Machine mode trap handler.
 #[no_mangle]
 pub extern "C" fn m_handler() {
     let mcause = riscv::read_mcause();

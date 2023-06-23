@@ -4,6 +4,7 @@ use core::fmt::{Write, Error};
 
 use crate::hal::*;
 use crate::lock::mutex::Mutex;
+// use crate::sbi_nputs;
 
 /// Wrapper for the HAL provided serial console. Ensure atomicity and nice rust bindings
 pub static PRIMARY_SERIAL_PASS: Mutex<SerialPass> = Mutex::new(SerialPass {_ignore: ()});
@@ -14,6 +15,9 @@ pub struct SerialPass {
 
 impl Write for SerialPass {
     fn write_str(&mut self, out: &str) -> Result<(), Error> {
+        // unsafe {
+        //     sbi_nputs(out.as_ptr(), out.len() as u32);
+        // }
         HAL::serial_put_string(out);
         Ok(())
     }

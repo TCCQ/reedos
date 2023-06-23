@@ -11,10 +11,20 @@
 #![feature(never_type)]
 #![allow(dead_code)]
 // #![allow(unused_variables)]
+
+
+// This should include the static libsbi library, which should be placed inside /target/<profile>/deps/
+// #[link(name = "libsbi.a", kind = "static", modifiers = "+verbatim")]
+// extern "C" {
+//     pub fn sbi_nputs(s: *const u8, len: u32) -> u32;
+// }
+
 use core::cell::OnceCell;
 use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
 extern crate alloc;
+
+
 
 #[macro_use]
 pub mod log;
