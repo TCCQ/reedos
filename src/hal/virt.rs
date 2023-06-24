@@ -12,9 +12,13 @@
 //
 // add return value checking for opensbi calls
 
-use core::arch::{asm, global_asm};
+use core::arch::asm;
 
 use super::*;
+use crate::vm::{palloc, pfree};
+use crate::vm::palloc::Page;
+
+mod ptable;
 
 const DEBUG_EID: u32 = 0x4442434E;
 const BASE_EID: u32 = 0x10;
@@ -49,33 +53,6 @@ fn _opensbi_call(eid: usize, fid: usize, mut a0: usize, mut a1: usize, a2: usize
 fn opensbi_call(eid: u32, fid: u32, a0: u32, a1: u32, a2: u32, a3: u32) -> (i32, u32) {
     _opensbi_call(eid as usize, fid as usize, a0 as usize, a1 as usize, a2 as usize, a3 as usize)
 }
-
-global_asm!(
-    "_opensbi_call:",
-    "mv a7, a0",
-    "mv a6, a1",
-    "mv a0, a2",
-    "mv a1, a3",
-    "mv a2, a4",
-    "mv a3, a5",
-    "ecall",
-    "ret",
-);
-
-// fn opensbi_call(eid: u32, fid: u32, mut a0: u32, mut a1: u32, a2: u32, a3: u32) -> (i32, u32) {
-//     unsafe {
-//         asm!(
-//             "ecall",
-//             inout("a0") a0,
-//             inout("a1") a1,
-//             in("a2") a2,
-//             in("a3") a3,
-//             in("a6") fid,
-//             in("a7") eid,
-//         );
-//     }
-//     (a0 as i32, a1)                    // err, val
-// }
 
 impl HALSerial for HAL {
     fn serial_setup() {
@@ -205,24 +182,74 @@ impl HALTimer for HAL {
     }
 }
 
+fn flags_hal_to_ptable(general: PageMapFlags) -> usize {
+    todo!()
+}
+
+fn table_hal_to_ptable(general: PageTable) -> ptable::PageTable {
+    todo!()
+}
+
 impl HALVM for HAL {
     fn pgtbl_setup() {
-        todo!()
+        // I don't think I need any global setup. Kernel page table creation happens later.
     }
 
+    /// This call is only valid after other non-hal stuff has been
+    /// initialized (page allocation specifically.)
     fn pgtbl_new_empty() -> Result<PageTable, HALVMError> {
-        todo!()
+        match palloc() {
+            Err(_) => {
+                return Err(todo!())
+            },
+            Ok(page) => {
+                // palloc should zero for us
+                Ok(page)
+            }
+        }
     }
 
     fn pgtbl_deep_copy(src: PageTable, dest: PageTable) -> Result<(), HALVMError> {
         todo!()
     }
 
-    fn pgtbl_insert_leaf(pgtbl: PageTable, phys: Address, virt: Address, flags: PageMapFlags) -> Result<(), HALVMError> {
-        todo!()
+    fn pgtbl_insert_range(
+        pgtbl: PageTable,
+        virt: VirtAddress,
+        phys: PhysAddress,
+        nbytes: usize,
+        flags: PageMapFlags
+    ) -> Result<(), HALVMError> {
+        match ptable::page_map(
+            table_hal_to_ptable(pgtbl),
+            virt,
+            phys,
+            nbytes,
+            flags_hal_to_ptable(flags)
+        ) {
+            Ok(()) => {return Ok(())},
+            Err(_) => todo!(),
+        }
     }
 
-    fn pgtbl_remove(pgtbl: PageTable, virt: Address) -> Result<(), HALVMError> {
+    fn pgtbl_remove_range(pgtbl: PageTable, virt: VirtAddress, nbytes: usize) -> Result<(), HALVMError> {
+        // TODO add logic for pruning intermediate levels. Currently
+        // there is a very slight memory buildup. It's not a leak
+        // because they will be cleaned up on free anyway, but we
+        // could free them here
+        match ptable::page_map(
+            table_hal_to_ptable(pgtbl),
+            virt,
+            0 as PhysAddress,
+            nbytes,
+            flags_hal_to_ptable(PageMapFlags::empty())
+        ) {
+            Ok(()) => {return Ok(())},
+            Err(_) => todo!(),
+        }
+    }
+
+    fn pgtbl_free(pgtbl: PageTable) {
         todo!()
     }
 }

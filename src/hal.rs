@@ -3,6 +3,8 @@
 
 use bitflags::bitflags;
 
+use crate::vm::palloc::Page;
+
 #[cfg(feature = "hal-virt")]
 pub mod virt;
 
@@ -58,21 +60,18 @@ pub trait HALTimer {
     // start ones that you don't wnat to happen
 }
 
-
-// These are outside to force them to be general across all
-// implementations. These types need to match regardless of backing.
-
 /// For readability. This is a full virt/phys address with page
 /// offset. This should be the input and output of most kernel
 /// facing functions
-pub type Address = usize;
+pub type VirtAddress = *mut usize;
+pub type PhysAddress = *mut usize;
 
 /// A reference to a full page table tree. Likely also an address
 /// of some kind.
 ///
 /// It is likely unwise to make this a real rust reference and not
 /// a raw address of some kind
-pub type PageTable = Address;
+pub type PageTable = Page;
 
 /// Things that can go wrong for pgtbl operations
 pub enum HALVMError {
@@ -99,8 +98,8 @@ bitflags! {
     }
 }
 
-const PAGE_SIZE: usize = 4096;
-const PAGE_OFFSET: usize = 12;
+pub const PAGE_SIZE: usize = 4096;
+pub const PAGE_OFFSET: usize = 12;
 
 pub trait HALVM {
     // Page table stuff
@@ -118,11 +117,14 @@ pub trait HALVM {
     /// Insert the given page into the given table at the given
     /// location. Flags should be specified here, although it's
     /// totally not clear how to make that general. TODO
-    fn pgtbl_insert_leaf(pgtbl: PageTable, phys: Address, virt: Address, flags: PageMapFlags) -> Result<(), HALVMError>;
-
+    fn pgtbl_insert_range(pgtbl: PageTable, virt: VirtAddress, phys: PhysAddress, nbytes: usize, flags: PageMapFlags) -> Result<(), HALVMError>;
     /// Remove the mapping at the address in the given page table
-    fn pgtbl_remove(pgtbl: PageTable, virt: Address) -> Result<(), HALVMError>;
+    fn pgtbl_remove_range(pgtbl: PageTable, virt: VirtAddress, nbytes: usize) -> Result<(), HALVMError>;
+
+    fn pgtbl_free(pgtbl: PageTable);
 }
+
+// TODO HAL wrapper for non-standard program flow (eg syscalls / context switches)
 
 pub trait HALBacking: HALSerial + HALTimer + HALVM {
     /// Run once before any of the rest of the kernel

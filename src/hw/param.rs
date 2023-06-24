@@ -25,6 +25,8 @@
 //    [VIRT_DRAM] =         { 0x80000000,           0x0 },
 //}
 
+// TODO phase this out with HAL
+
 use core::ptr::addr_of_mut;
 
 /// CLINT base address.
@@ -54,7 +56,6 @@ pub const VIRTIO_IRQ: usize = 1;
 
 /// Start of kernel memory (first .text section goes here).
 pub const DRAM_BASE: *mut usize = 0x80000000 as *mut usize;
-
 
 macro_rules! linker_var {
     (
@@ -95,12 +96,9 @@ linker_var!(_memory_end, memory_end);
 
 linker_var!(_global_pointer, global_pointer);
 
-pub static PAGE_SIZE: usize = 4096;
-
 // Run parameters
 pub const NHART: usize = 2;
 
-// Unnecessary.
 pub static BANNER: &str = r#"
 Mellow Swirled,
                        __

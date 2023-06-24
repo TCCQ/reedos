@@ -1,7 +1,6 @@
 //! Virtual Memory
 pub mod global;
-mod palloc;
-pub mod ptable;
+pub mod palloc;
 pub mod vmalloc;
 
 use crate::lock::mutex::Mutex;
@@ -13,7 +12,6 @@ use core::arch::asm;
 
 use global::Galloc;
 use palloc::*;
-use ptable::{PageTable, kpage_init};
 
 // For saftey reasons, no part of the page allocation process all the
 // way up past this module can use rust dynamic allocation (global
@@ -168,12 +166,12 @@ pub unsafe fn test_galloc() {
 //     unsafe { VMALLOC.get_mut().unwrap().free(ptr) }
 // }
 
-// for internal vm use only.
-fn palloc() -> Result<Page, VmError> {
+// exposed, but request_phys_page is preferred
+pub fn palloc() -> Result<Page, VmError> {
     unsafe { PAGEPOOL.get_mut().unwrap().palloc() }
 }
 
-fn pfree(page: Page) -> Result<(), VmError> {
+pub fn pfree(page: Page) -> Result<(), VmError> {
     unsafe { PAGEPOOL.get_mut().unwrap().pfree(page) }
 }
 

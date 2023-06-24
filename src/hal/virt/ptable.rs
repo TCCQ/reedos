@@ -1,10 +1,12 @@
 //! Page table
+use core::assert;
+
 // VA: 39bits, PA: 56bits
 // PTE size = 8 bytes
 use crate::hw::param::*;
 use crate::hw::riscv::*;
 use crate::vm::*;
-use core::assert;
+use crate::hal::*;                   // virt/hal stuff
 
 const VA_TOP: usize = 1 << (27 + 12); // 2^27 VPN + 12 Offset
 const PTE_TOP: usize = 512; // 4Kb / 8 byte PTEs = 512 PTEs / page!
@@ -17,12 +19,10 @@ const PTE_GLOBAL: usize = 1 << 5;
 const PTE_ACCESSED: usize = 1 << 6;
 const PTE_DIRTY: usize = 1 << 7;
 
-pub type VirtAddress = *mut usize;
-pub type PhysAddress = *mut usize;
 type PTEntry = usize;
 /// Supervisor Address Translation and Protection.
 /// Section 4.1.12 of risc-v priviliged ISA manual.
-pub type SATPAddress = usize;
+type SATPAddress = usize;
 
 /// Abstraction of a page table at a physical address.
 /// Notice we didn't use a rust array here, instead
@@ -232,7 +232,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
         PTE_READ | PTE_WRITE,
     )?;
     log!(Debug, "Successfully mapped PLIC into kernel pgtable...");
-    
+
     page_map(
         kpage_table,
         VIRTIO_BASE as *mut usize,
