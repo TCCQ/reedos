@@ -36,13 +36,12 @@ pub mod hw;
 pub mod lock;
 pub mod trap;
 pub mod vm;
-pub mod process;
+// pub mod process;
 pub mod file;
 pub mod hal;
 
 
-use crate::hw::hartlocal;
-use crate::vm::ptable::PageTable;
+// use crate::hw::hartlocal;
 use crate::device::plic;
 use crate::hw::param;
 use crate::hw::riscv::*;
@@ -143,8 +142,8 @@ pub extern "C" fn main() -> ! {
         // uart::init();
         println!("{}", param::BANNER);
         log!(Info, "Bootstrapping on hart0...");
-        trap::init();
-        log!(Info, "Finished trap init...");
+        // trap::init();
+        // log!(Info, "Finished trap init...");
         match vm::global_init() {
             Ok(pt) => {
                 unsafe {
@@ -152,7 +151,7 @@ pub extern "C" fn main() -> ! {
                         Ok(()) => {},
                         Err(_) => panic!("Kernel Page Table double init!"),
                     }
-                    vm::local_init(KERNEL_PAGE_TABLE.get().unwrap());
+                    // vm::local_init(KERNEL_PAGE_TABLE.get().unwrap());
                 }
             },
             Err(_) => {
@@ -160,6 +159,7 @@ pub extern "C" fn main() -> ! {
             }
         }
         log!(Info, "Initialized the kernel page table...");
+        panic!("Got as far as I wanted");
         plic::global_init();
         log!(Info, "Finished plic globl init...");
         unsafe {
@@ -177,8 +177,8 @@ pub extern "C" fn main() -> ! {
             println!("{:?}", e);
         }
 
-        process::init_process_structure();
-        hartlocal::hartlocal_info_interrupt_stack_init();
+        // process::init_process_structure();
+        // hartlocal::hartlocal_info_interrupt_stack_init();
         log!(Debug, "Successfuly initialized the process system...");
         plic::local_init();
         log!(Info, "Finished plic local init hart0...");
@@ -190,22 +190,22 @@ pub extern "C" fn main() -> ! {
         }
     } else {
         // Do the init that can be independent and without global deps.
-        trap::init();
+        // trap::init();
 
-        unsafe {
-            // spin until the global init is done
-            GLOBAL_INIT_FLAG.assume_init_ref().spin_wait(1);
-            vm::local_init(KERNEL_PAGE_TABLE.get().unwrap());
-        }
-        hartlocal::hartlocal_info_interrupt_stack_init();
-        plic::local_init();
-        log!(Info, "Completed all hart{} local initialization", read_tp());
+        // unsafe {
+        //     // spin until the global init is done
+        //     GLOBAL_INIT_FLAG.assume_init_ref().spin_wait(1);
+        //     vm::local_init(KERNEL_PAGE_TABLE.get().unwrap());
+        // }
+        // hartlocal::hartlocal_info_interrupt_stack_init();
+        // plic::local_init();
+        // log!(Info, "Completed all hart{} local initialization", read_tp());
 
     }
 
     // we want to test multiple processes with multiple harts
-    process::test_multiprocess_syscall();
-    //loop {}
+    // process::test_multiprocess_syscall();
+    // loop {}
 
     panic!("Reached the end of kernel main! Did the root process not start?");
 }

@@ -1,11 +1,11 @@
 //! Target-hardware parameters and utilities.
 pub mod param;
 pub mod riscv;
-pub mod hartlocal;
+// pub mod hartlocal;
 
 use crate::device::clint;
 use crate::trap;
-use crate::process::Process;
+// use crate::process::Process;
 use riscv::*;
 
 /// Callee saved registers.
@@ -14,11 +14,11 @@ pub struct HartContext {
 }
 
 /// Representation of riscv hart.
-pub struct Hart {
-    id: usize,
-    process: Process,
-    ctx_regs: HartContext,
-}
+// pub struct Hart {
+//     id: usize,
+//     process: Process,
+//     ctx_regs: HartContext,
+// }
 
 /// Set up and enable the core local interrupt controller on each hart.
 /// We write the machine mode trap vector register (mtvec) with the address

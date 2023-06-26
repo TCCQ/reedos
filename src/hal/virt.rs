@@ -16,7 +16,6 @@ use core::arch::asm;
 
 use super::*;
 use crate::vm::{palloc, pfree};
-use crate::vm::palloc::Page;
 
 mod ptable;
 
@@ -177,17 +176,51 @@ impl HALTimer for HAL {
         todo!()
     }
 
-    fn timer_set(ticks: u64) {
+    fn timer_set(_ticks: u64) {
         todo!()
     }
 }
 
-fn flags_hal_to_ptable(general: PageMapFlags) -> usize {
-    todo!()
+fn flags_hal_to_ptable(general: PageMapFlags) -> Result<usize, HALVMError> {
+    let mut out: usize = 0;
+    for f in general.into_iter() {
+        match f {
+            PageMapFlags::Read => {
+                out |= ptable::PTE_READ;
+            },
+            PageMapFlags::Write => {
+                out |= ptable::PTE_WRITE;
+            },
+            PageMapFlags::Execute => {
+                out |= ptable::PTE_EXEC;
+            },
+            PageMapFlags::Valid => {
+                out |= ptable::PTE_VALID;
+            },
+            PageMapFlags::User => {
+                out |= ptable::PTE_USER;
+            },
+            PageMapFlags::Global => {
+                out |= ptable::PTE_GLOBAL;
+            },
+            PageMapFlags::Accessed => {
+                out |= ptable::PTE_ACCESSED;
+            },
+            PageMapFlags::Dirty => {
+                out |= ptable::PTE_DIRTY;
+            },
+            other => {
+                return Err(HALVMError::UnsupportedFlags(other));
+            }
+        }
+    }
+    return Ok(out);
 }
 
 fn table_hal_to_ptable(general: PageTable) -> ptable::PageTable {
-    todo!()
+    ptable::PageTable {
+        base: general.addr,
+    }
 }
 
 impl HALVM for HAL {
@@ -200,7 +233,7 @@ impl HALVM for HAL {
     fn pgtbl_new_empty() -> Result<PageTable, HALVMError> {
         match palloc() {
             Err(_) => {
-                return Err(todo!())
+                todo!();
             },
             Ok(page) => {
                 // palloc should zero for us
@@ -209,7 +242,7 @@ impl HALVM for HAL {
         }
     }
 
-    fn pgtbl_deep_copy(src: PageTable, dest: PageTable) -> Result<(), HALVMError> {
+    fn pgtbl_deep_copy(_src: PageTable,_dest: PageTable) -> Result<(), HALVMError> {
         todo!()
     }
 
@@ -225,7 +258,7 @@ impl HALVM for HAL {
             virt,
             phys,
             nbytes,
-            flags_hal_to_ptable(flags)
+            flags_hal_to_ptable(flags)?
         ) {
             Ok(()) => {return Ok(())},
             Err(_) => todo!(),
@@ -242,15 +275,23 @@ impl HALVM for HAL {
             virt,
             0 as PhysAddress,
             nbytes,
-            flags_hal_to_ptable(PageMapFlags::empty())
+            flags_hal_to_ptable(PageMapFlags::empty())?
         ) {
             Ok(()) => {return Ok(())},
             Err(_) => todo!(),
         }
     }
 
-    fn pgtbl_free(pgtbl: PageTable) {
+    fn pgtbl_free(_pgtbl: PageTable) {
         todo!()
+    }
+
+    fn pgtbl_swap(pgtbl: PageTable) {
+        let mut base_addr = pgtbl.addr as usize;
+        base_addr = (base_addr >> PAGE_OFFSET) | (8 << 60); // base addr + 39bit addressing
+        unsafe {
+            asm!("csrw satp, {}", in(reg) base_addr);
+        }
     }
 }
 

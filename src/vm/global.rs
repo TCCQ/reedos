@@ -1,4 +1,4 @@
-use crate::param::PAGE_SIZE;
+use crate::hal::PAGE_SIZE;
 use crate::vm::palloc::PagePool;
 use crate::vm::vmalloc::{Kalloc, MAX_CHUNK_SIZE};
 /// Global allocator on top of vmalloc and palloc

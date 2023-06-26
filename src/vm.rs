@@ -3,13 +3,15 @@ pub mod global;
 pub mod palloc;
 pub mod vmalloc;
 
-use crate::lock::mutex::Mutex;
-use crate::hw::param::*;
+
 use alloc::boxed::Box;
 use core::alloc::{GlobalAlloc, Layout};
 use core::cell::OnceCell;
 use core::arch::asm;
 
+use crate::lock::mutex::Mutex;
+use crate::hw::param::*;
+use crate::hal::*;
 use global::Galloc;
 use palloc::*;
 
@@ -60,7 +62,6 @@ pub enum VmError {
     Koom,
 }
 
-
 /// Initialize the kernel VM system.
 /// First, setup the kernel physical page pool.
 /// We start the pool at the end of the .bss section, and stop at the end of physical memory.
@@ -88,34 +89,212 @@ pub fn global_init() -> Result<PageTable, ()> {
         }
     }
 
+    // ---------------------------------------------------------------
+    // After this palloc can be used, so we can call HALVM stuff safely
+
     // Map text, data, stacks, heap into kernel page table.
     match kpage_init() {
         Ok(pt) => {
             return Ok(pt);
         },
         Err(_) => {
-            panic!();
+            panic!("Failed to setup kernel page table!");
         }
     }
 }
 
 pub fn local_init(pt: &PageTable) {
-    pt.write_satp();
-    pagetable_interrupt_stack_setup(pt);
+    todo!("hart local init stuff");
+    // pt.write_satp();
+    // pagetable_interrupt_stack_setup(pt);
 }
 
 // TODO error type?
-fn pagetable_interrupt_stack_setup(pt: &ptable::PageTable) {
-    log!(Debug, "Writing kernel page table {:02X?}", pt.base);
+fn pagetable_interrupt_stack_setup(pt: &PageTable) {
+    log!(Debug, "Writing kernel page table {:02X?}", pt.addr);
     unsafe {
         asm!(
             "csrrw sp, sscratch, sp",
             "addi sp, sp, -8",
             "sd {page_table}, (sp)",
             "csrrw sp, sscratch, sp",
-            page_table = in(reg) pt.base as usize
+            page_table = in(reg) pt.addr as usize
         );
     }
+}
+
+/// Create the kernel page table with 1:1 mappings to physical memory.
+/// First allocate a new page for the kernel page table.
+/// Next, map memory mapped I/O devices to the kernel page table.
+/// Then map the kernel .text, .data, .rodata and .bss sections.
+/// Additionally, map a stack+guard page for each hart.
+/// Finally map, the remaining physical memory to kernel virtual memory as
+/// the kernel 'heap'.
+pub fn kpage_init() -> Result<PageTable, VmError> {
+    // let base = unsafe {
+    //     PAGEPOOL
+    //         .get_mut()
+    //         .unwrap()
+    //         .palloc()
+    //         .expect("Couldn't allocate root kernel page table.")
+    // };
+    let kpage_table = match HAL::pgtbl_new_empty() {
+        Ok(p) => p,
+        Err(_) => {
+            panic!("Could not allocate a kernel page table!");
+        }
+    };
+    // //log!(Debug, "Kernel page table base addr: {:#02x}", base.addr.addr());
+
+    // this closure lets us handle all of the error sources at once
+    let map_pages = || -> Result<(), HALVMError> {
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            UART_BASE as *mut usize,
+            UART_BASE as *mut usize,
+            PAGE_SIZE,
+            PageMapFlags::Read | PageMapFlags::Write
+        )?;
+        log!(Debug, "Successfully mapped UART into kernel pgtable...");
+
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            PLIC_BASE as *mut usize,
+            PLIC_BASE as *mut usize,
+            PLIC_SIZE,
+            PageMapFlags::Read | PageMapFlags::Write
+        )?;
+        log!(Debug, "Successfully mapped PLIC into kernel pgtable...");
+
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            VIRTIO_BASE as *mut usize,
+            VIRTIO_BASE as *mut usize,
+            VIRTIO_SIZE,
+            PageMapFlags::Read | PageMapFlags::Write
+        )?;
+        log!(Debug, "Successfully mapped PLIC into kernel pgtable...");
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            DRAM_BASE,
+            DRAM_BASE as *mut usize,
+            text_end().addr() - DRAM_BASE.addr(),
+            PageMapFlags::Read | PageMapFlags::Execute
+        )?;
+        log!(
+            Debug,
+            "Succesfully mapped kernel text into kernel pgtable..."
+        );
+
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            text_end(),
+            text_end() as *mut usize,
+            rodata_end().addr() - text_end().addr(),
+            PageMapFlags::Read
+        )?;
+        log!(
+            Debug,
+            "Succesfully mapped kernel rodata into kernel pgtable..."
+        );
+
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            rodata_end(),
+            rodata_end() as *mut usize,
+            data_end().addr() - rodata_end().addr(),
+            PageMapFlags::Read | PageMapFlags::Write
+        )?;
+        log!(
+            Debug,
+            "Succesfully mapped kernel data into kernel pgtable..."
+        );
+
+        // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
+        // problem.
+        let base = stacks_start();
+        for s in 0..NHART {
+            let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 3)) };
+            HAL::pgtbl_insert_range(
+                kpage_table,
+                stack,
+                stack,
+                PAGE_SIZE * 2,
+                PageMapFlags::Read | PageMapFlags::Write
+            )?;
+            log!(
+                Debug,
+                "Succesfully mapped kernel stack {} into kernel pgtable...",
+                s
+            );
+        }
+
+        // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
+        // problem.
+        let base = intstacks_start();
+        for i in 0..NHART {
+            let m_intstack = unsafe { base.byte_add(PAGE_SIZE * (1 + i * 4)) };
+            // Map hart i m-mode handler.
+            HAL::pgtbl_insert_range(
+                kpage_table,
+                m_intstack,
+                m_intstack,
+                PAGE_SIZE,
+                PageMapFlags::Read | PageMapFlags::Write
+            )?;
+            // Map hart i s-mode handler
+            let s_intstack = unsafe { m_intstack.byte_add(PAGE_SIZE * 2) };
+            HAL::pgtbl_insert_range(
+                kpage_table,
+                s_intstack,
+                s_intstack,
+                PAGE_SIZE,
+                PageMapFlags::Read | PageMapFlags::Write
+            )?;
+            log!(
+                Debug,
+                "Succesfully mapped interrupt stack for hart {} into kernel pgtable...",
+                i
+            );
+        }
+
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            bss_start(),
+            bss_start(),
+            bss_end().addr() - bss_start().addr(),
+            PageMapFlags::Read | PageMapFlags::Write
+        )?;
+        log!(Debug, "Succesfully mapped kernel bss...");
+
+        HAL::pgtbl_insert_range(
+            kpage_table,
+            bss_end(),
+            bss_end(),
+            memory_end().addr() - bss_end().addr(),
+            PageMapFlags::Read | PageMapFlags::Write
+        )?;
+        log!(Debug, "Succesfully mapped kernel heap...");
+        Ok(())
+    };
+
+    match map_pages()  {
+        Ok(()) => {},
+        Err(e) => {
+            match e {
+                HALVMError::FailedAllocation => {
+                    return Err(VmError::PallocFail)
+                },
+                HALVMError::MisalignedAddress => {
+                    panic!("Kernel mapping not page aligned?!")
+                },
+                HALVMError::UnsupportedFlags(mask) => {
+                    panic!("Unsupported flags in kernel mapping: {mask:x}!");
+                }
+            }
+        },
+    }
+    Ok(kpage_table)
 }
 
 /// A test designed to be used with GDB.

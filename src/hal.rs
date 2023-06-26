@@ -77,7 +77,7 @@ pub type PageTable = Page;
 pub enum HALVMError {
     MisalignedAddress,
     FailedAllocation,
-    UnsupportedFlags(u32),      // Returns set of unsupported flags
+    UnsupportedFlags(PageMapFlags),      // Returns set of unsupported flags
     // TODO others?
 }
 
@@ -86,6 +86,7 @@ bitflags! {
 ///
 /// Things that you can request of a page mapping. Not all may be
 /// valid for all hardware. See associated error.
+    #[derive(PartialEq, Eq)]
     pub struct PageMapFlags: u32 {
         const Read     = 0x00_00_00_01;
         const Write    = 0x00_00_00_02;
@@ -118,8 +119,15 @@ pub trait HALVM {
     /// location. Flags should be specified here, although it's
     /// totally not clear how to make that general. TODO
     fn pgtbl_insert_range(pgtbl: PageTable, virt: VirtAddress, phys: PhysAddress, nbytes: usize, flags: PageMapFlags) -> Result<(), HALVMError>;
+
     /// Remove the mapping at the address in the given page table
     fn pgtbl_remove_range(pgtbl: PageTable, virt: VirtAddress, nbytes: usize) -> Result<(), HALVMError>;
+
+    /// Change your page table. Only safe in the next instruction
+    /// (probably a whole bunch of text, including this function and
+    /// whatever caller you need to direct traffic) is mapped with
+    /// appropriate permissions in destination page table.
+    fn pgtbl_swap(pgtbl: PageTable);
 
     fn pgtbl_free(pgtbl: PageTable);
 }
