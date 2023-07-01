@@ -104,7 +104,8 @@ pub fn global_init() -> Result<PageTable, ()> {
 }
 
 pub fn local_init(pt: &PageTable) {
-    todo!("hart local init stuff");
+    HAL::pgtbl_swap(pt);
+    log!(Info, "WE ARE NOT DOING SECONDARY STACK SETUP YET!!!");
     // pt.write_satp();
     // pagetable_interrupt_stack_setup(pt);
 }
@@ -156,6 +157,10 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         log!(Debug, "Successfully mapped UART into kernel pgtable...");
+
+        const PLIC_BASE: usize = 0xc000000;
+        const PLIC_SIZE: usize = 0x400000;
+        log!(Error, "ADD ISOLATION FOR HW SPECIFIC MAPPINGS (PLIC)!!!!");
 
         HAL::pgtbl_insert_range(
             kpage_table,

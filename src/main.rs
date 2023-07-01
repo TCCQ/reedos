@@ -42,9 +42,9 @@ pub mod hal;
 
 
 // use crate::hw::hartlocal;
-use crate::device::plic;
+// use crate::device::plic;
 use crate::hw::param;
-use crate::hw::riscv::*;
+// use crate::hw::riscv::*;
 use crate::lock::condition::ConditionVar;
 use crate::hal::*;
 
@@ -129,83 +129,65 @@ pub extern "C" fn _start() {
 // one time by only doing so on hart0.
 #[no_mangle]
 pub extern "C" fn main() -> ! {
-    // We only bootstrap on hart0.
-    let id = read_tp();
+    // We only bootstrap on a single CPU.
+    HAL::isolate();
 
+    hal::HAL::global_setup();
+    println!("{}", param::BANNER);
+    log!(Info, "Bootstrapping on hart0...");
+    // trap::init();
+    // log!(Info, "Finished trap init...");
+    match vm::global_init() {
+        Ok(pt) => {
+            unsafe {
+                match KERNEL_PAGE_TABLE.set(pt) {
+                    Ok(()) => {},
+                    Err(_) => panic!("Kernel Page Table double init!"),
+                }
+                vm::local_init(KERNEL_PAGE_TABLE.get().unwrap());
+            }
+        },
+        Err(_) => {
+            panic!("Failed VM initialization!");
+        }
+    }
+    log!(Info, "Initialized the kernel page table...");
+    // plic::global_init(); // TODO figure out the relation with opensbi here.
+    log!(Info, "Finished plic globl init...");
     unsafe {
-        // this happens on all harts, but they are all writing the same thing
-        GLOBAL_INIT_FLAG.write(ConditionVar::new(0));
+        log!(Debug, "Testing page allocation and freeing...");
+        vm::test_palloc();
+        log!(Debug, "Testing galloc allocation and freeing...");
+        vm::test_galloc();
+    }
+    log!(Debug, "Testing phys page extent allocation and freeing...");
+    vm::test_phys_page();
+    log!(Debug, "Successful phys page extent allocation and freeing...");
+
+    panic!("Got as far as I wanted");
+
+    log!(Debug, "Initializing VIRTIO blk device...");
+    if let Err(e) = device::virtio::virtio_block_init() {
+        println!("{:?}", e);
     }
 
-    if id == 0 {
-        hal::HAL::global_setup();
-        // uart::init();
-        println!("{}", param::BANNER);
-        log!(Info, "Bootstrapping on hart0...");
-        // trap::init();
-        // log!(Info, "Finished trap init...");
-        match vm::global_init() {
-            Ok(pt) => {
-                unsafe {
-                    match KERNEL_PAGE_TABLE.set(pt) {
-                        Ok(()) => {},
-                        Err(_) => panic!("Kernel Page Table double init!"),
-                    }
-                    // vm::local_init(KERNEL_PAGE_TABLE.get().unwrap());
-                }
-            },
-            Err(_) => {
-                panic!("Failed VM initialization!");
-            }
-        }
-        log!(Info, "Initialized the kernel page table...");
-        panic!("Got as far as I wanted");
-        plic::global_init();
-        log!(Info, "Finished plic globl init...");
-        unsafe {
-            log!(Debug, "Testing page allocation and freeing...");
-            vm::test_palloc();
-            log!(Debug, "Testing galloc allocation and freeing...");
-            vm::test_galloc();
-        }
-        log!(Debug, "Testing phys page extent allocation and freeing...");
-        vm::test_phys_page();
-        log!(Debug, "Successful phys page extent allocation and freeing...");
+    // process::init_process_structure();
+    // hartlocal::hartlocal_info_interrupt_stack_init();
+    log!(Debug, "Successfuly initialized the process system...");
+    // plic::local_init();
+    log!(Info, "Finished plic local init hart0...");
+    log!(Info, "Completed all hart0 initialization and testing...");
 
-        log!(Debug, "Initializing VIRTIO blk device...");
-        if let Err(e) = device::virtio::virtio_block_init() {
-            println!("{:?}", e);
-        }
-
-        // process::init_process_structure();
-        // hartlocal::hartlocal_info_interrupt_stack_init();
-        log!(Debug, "Successfuly initialized the process system...");
-        plic::local_init();
-        log!(Info, "Finished plic local init hart0...");
-        log!(Info, "Completed all hart0 initialization and testing...");
-
-        unsafe {
-            // release the waiting harts
-            GLOBAL_INIT_FLAG.assume_init_mut().update(1);
-        }
-    } else {
-        // Do the init that can be independent and without global deps.
-        // trap::init();
-
-        // unsafe {
-        //     // spin until the global init is done
-        //     GLOBAL_INIT_FLAG.assume_init_ref().spin_wait(1);
-        //     vm::local_init(KERNEL_PAGE_TABLE.get().unwrap());
-        // }
-        // hartlocal::hartlocal_info_interrupt_stack_init();
-        // plic::local_init();
-        // log!(Info, "Completed all hart{} local initialization", read_tp());
-
+    unsafe {
+        // release the waiting harts
+        GLOBAL_INIT_FLAG.assume_init_mut().update(1);
     }
 
     // we want to test multiple processes with multiple harts
     // process::test_multiprocess_syscall();
     // loop {}
+
+    todo!("Do CPU discovery and setup with HAL::wake_one");
 
     panic!("Reached the end of kernel main! Did the root process not start?");
 }

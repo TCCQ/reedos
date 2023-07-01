@@ -18,6 +18,11 @@ use super::*;
 use crate::vm::{palloc, pfree};
 
 mod ptable;
+mod plic;
+
+
+// -------------------------------------------------------------------
+// Opensbi stuff
 
 const DEBUG_EID: u32 = 0x4442434E;
 const BASE_EID: u32 = 0x10;
@@ -48,10 +53,12 @@ fn _opensbi_call(eid: usize, fid: usize, mut a0: usize, mut a1: usize, a2: usize
     (a0 as i32, a1 as u32)
 }
 
-
 fn opensbi_call(eid: u32, fid: u32, a0: u32, a1: u32, a2: u32, a3: u32) -> (i32, u32) {
     _opensbi_call(eid as usize, fid as usize, a0 as usize, a1 as usize, a2 as usize, a3 as usize)
 }
+
+// -------------------------------------------------------------------
+// Trait implementations
 
 impl HALSerial for HAL {
     fn serial_setup() {
@@ -286,7 +293,7 @@ impl HALVM for HAL {
         todo!()
     }
 
-    fn pgtbl_swap(pgtbl: PageTable) {
+    fn pgtbl_swap(pgtbl: &PageTable) {
         let mut base_addr = pgtbl.addr as usize;
         base_addr = (base_addr >> PAGE_OFFSET) | (8 << 60); // base addr + 39bit addressing
         unsafe {
@@ -294,12 +301,124 @@ impl HALVM for HAL {
         }
     }
 }
+// -------------------------------------------------------------------
+
+fn read_scause() -> usize {
+    unsafe {
+        let out: usize;
+        asm!(
+            "csrr {out}, scause",
+            out = out(reg) out
+        );
+        out
+    }
+}
+
+/// Supervisor mode trap handler.
+#[no_mangle]
+pub extern "C" fn s_handler() {
+    let cause = read_scause();
+
+    match cause {
+        S_EXTERN_IRQ => {
+            s_extern()
+        },
+        _ => {
+            log!(
+                Warning,
+                "Uncaught supervisor mode interupt. scause: 0x{:x}",
+                cause
+            );
+            panic!()
+        }
+    }
+}
+
+/// Called when we get a S mode external interupt. Probably UART input
+/// or virtio.
+fn s_extern() {
+    let irq = unsafe {
+        plic::PLIC.get().expect("PLIC not initialized!").claim()
+    };
+
+    const UART_IRQ: u32 = plic::UART_IRQ as u32;
+    const VIRTIO_IRQ: u32 = plic::VIRTIO_IRQ as u32;
+    match irq {
+        0 => {
+            // reserved for "No interrupt" according to the
+            // cookbook. Just chill I guess, I don't think we need to
+            // complete it
+        }
+        UART_IRQ => {
+            // I intentionally don't hold the lock here to
+            // allow printing. Normally we shouldn't print
+            // here
+            /*
+            let input = unsafe {
+                match uart::WRITER.lock().get() {
+                    Some(i) => i,
+                    None => {
+                        // spurious irq? just exit early
+                        plic::PLIC.get().unwrap().complete(irq);
+                        return
+                    }
+                }
+            };
+            log!(Info, "Got UART input: {}",
+                 char::from_u32(input as u32).expect(
+                     "Illformed UART input character!"
+                 ));
+            */
+            log!(Debug, "Ignored uart input. Consider buffering inside HAL");
+            unsafe {
+                plic::PLIC.get().unwrap().complete(irq)
+            };
+
+        },
+        VIRTIO_IRQ => {
+            todo!("virtio interrupts");
+            // virtio::virtio_blk_intr();
+            unsafe {
+                plic::PLIC.get().unwrap().complete(irq)
+            };
+        },
+        _ => {
+            panic!("Uncaught PLIC exception.")
+        }
+    }
+}
+
+/// Ideally general handler init for riscv
+impl HALIntExc for HAL {
+    fn handler_setup() {
+        unsafe {
+            asm!(
+                // I should clear SIE here and restore later TODO
+                "csrw stvec, __strapvec"
+            );
+        }
+        plic::global_init();
+    }
+}
+
+impl HALCPU for HAL {
+    fn isolate() {
+        // This is valid to be empty, as opensbi only starts a single
+        // CPU on coldboot, see docs in hal.rs
+    }
+
+    fn wake_one<F: Fn() -> !>(start: F) -> Result<(), HALCPUError> {
+        todo!("If you haven't done CPU number discovery, you should do that first.")
+    }
+}
 
 impl HALBacking for HAL {
     fn global_setup() {
         assert!(opensbi_call(BASE_EID, 0, 0, 0, 0, 0).1 == (1<<24) | (0 & 0xFF_FF_FF), "Wrong sbi version");
         Self::serial_setup();
+        Self::handler_setup(); // TODO, firgure out how opensbi works with traps
         // Self::timer_setup();
         // Self::pgtbl_setup();
+
     }
 }

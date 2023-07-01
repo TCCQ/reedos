@@ -19,7 +19,21 @@
 
 use core::cell::OnceCell; // for PLIC, write once read many times
 use crate::hw::riscv;
-use crate::hw::param::{PLIC_BASE, UART_IRQ, VIRTIO_IRQ};
+// use crate::hw::param::{PLIC_BASE, UART_IRQ, VIRTIO_IRQ};
+
+/// VIRTIO interrupt request number.
+pub const VIRTIO_IRQ: usize = 1;
+
+/// UART interrupt request number.
+pub const UART_IRQ: usize = 10;
+
+/// PLIC base address.
+pub const PLIC_BASE: usize = 0xc000000;
+
+/// PLIC size in memory
+pub const PLIC_SIZE: usize = 0x400000;
+//TODO this should be a function of NHART
+
 
 // ^ constants for PLIC_BASE & device interrupt (IRQ) priority locations.
 

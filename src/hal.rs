@@ -60,6 +60,9 @@ pub trait HALTimer {
     // start ones that you don't wnat to happen
 }
 
+// -------------------------------------------------------------------
+// Virtual memory stuff
+
 /// For readability. This is a full virt/phys address with page
 /// offset. This should be the input and output of most kernel
 /// facing functions
@@ -127,14 +130,71 @@ pub trait HALVM {
     /// (probably a whole bunch of text, including this function and
     /// whatever caller you need to direct traffic) is mapped with
     /// appropriate permissions in destination page table.
-    fn pgtbl_swap(pgtbl: PageTable);
+    fn pgtbl_swap(pgtbl: &PageTable);
 
     fn pgtbl_free(pgtbl: PageTable);
 }
 
-// TODO HAL wrapper for non-standard program flow (eg syscalls / context switches)
+// -------------------------------------------------------------------
+//
 
-pub trait HALBacking: HALSerial + HALTimer + HALVM {
+/// This should conceptually contain all the stuff related to
+/// interupts and exceptions. Since those are so deeply hardware
+/// dependant, this trait will only require a single setup function,
+/// that should do whatever installation and set up is necessary for
+/// the hardware in question. The handlers that get installed can call
+/// out to the main kernel, but the implementer of the HAL is
+/// responsible for ensuring that the calls and their side effects are
+/// safe for the current execution environement (Priviledge, Current
+/// page table, type of handler). A natural ideal point for
+/// generalization would be the syscalls, but even those calling
+/// conventions are different. The syscall main handler will continue
+/// to exist outside of the HAL, but small hardware specific changes
+/// can be implemented with addributes that check for the cargo
+/// features for the desired HAl.
+pub trait HALIntExc {
+    /// This function should set up and install all interupt and
+    /// exception handlers required by the system. It does not return
+    /// any errors, and instead should panic on error.
+    fn handler_setup();
+}
+
+// -------------------------------------------------------------------
+// CPU and executor control
+
+pub enum HALCPUError {
+    OutOfCPU,
+}
+
+
+pub trait HALCPU {
+    /// Call by all cpus, a single one will return. Others can be
+    /// retrieved later with wake_one. This call should be used before
+    /// any setup, and is only valid to call a single time. If a
+    /// platform or hardware guarantees that only one CPU will wake on
+    /// a cold boot, this call can be empty, however wake_one should
+    /// still function as expected. (This is the case for opensbi).
+    ///
+    /// If this call cannot succeed, it should panic rather than
+    /// return an error.
+    ///
+    /// It is valid to call this before global_setup is called.
+    fn isolate();
+
+    /// Retrieve some CPU from the isolate call. This call is only
+    /// valid after the single textural call to isolate. It will
+    /// return an error or nothing to the caller depending on if the
+    /// wakeup was successful. A platform should have some other way
+    /// of determing the number of CPUs. If a CPU is woken, it's
+    /// execution starts at the passed function.
+    ///
+    /// This should probably only be called after global_setup
+    fn wake_one<F: Fn() -> !>(start: F) -> Result<(), HALCPUError>;
+}
+
+pub trait HALBacking: HALSerial + HALTimer + HALVM + HALIntExc + HALCPU {
+    /// Call on all CPUs on start, a single one will exit, and all others will hold, until a later wakeup call
+
     /// Run once before any of the rest of the kernel
     fn global_setup();
 }
