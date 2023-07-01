@@ -4,22 +4,22 @@
 ### / disappears after the trap exits
 
 
-        .section .text
-        ## This is the machine mode trap vector(not really). It exists
-        ## to get us into the rust handler
-        .option norvc
-        .align 4
-        .global __mtrapvec
-__mtrapvec:
-        csrrw sp, mscratch, sp
-        save_gp_regs
+##         .section .text
+##         ## This is the machine mode trap vector(not really). It exists
+##         ## to get us into the rust handler
+##         .option norvc
+##         .align 4
+##         .global __mtrapvec
+## __mtrapvec:
+##         csrrw sp, mscratch, sp
+##         save_gp_regs
 
-        .extern m_handler
-        call m_handler
+##         .extern m_handler
+##         call m_handler
 
-        load_gp_regs
-        csrrw sp, mscratch, sp
-        mret
+##         load_gp_regs
+##         csrrw sp, mscratch, sp
+##         mret
 
 ### ------------------------------------------------------------------
 ###
@@ -102,6 +102,10 @@ regular_strap:
         ## directing traffic
         ##
 scall_asm:
+        j scall_asm
+        ## TODO small patch to avoid having to fix all of process.rs
+        ## before a test cycle. Don't forget to remove
+
         ## handle a yield specifically
 
         ## make quick space by using the sscratch stack without
@@ -111,7 +115,8 @@ scall_asm:
         sd a0, (sp)
         ## we are on the sscratch stack and can clobber a0 freely. All
         ## others must be preserved
-        jal scall_direct
+        ## jal scall_direct
+        ## TODO uncomment, see scall_asm
 
         ## returns zero in a0 if we want to stay on the program
         ## stack/page table, and non-zero for the kernel stack/ page
@@ -174,7 +179,8 @@ dont_change_stack:
         addi sp, sp, -8
         ld ra, (sp)
         ## call the main handler
-        jal scall_rust
+        ## jal scall_rust
+        ## TODO uncomment, see scall_asm
 
         ## TODO do we need to manually increment sepc? unclear
         sret

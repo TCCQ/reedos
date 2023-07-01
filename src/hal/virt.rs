@@ -297,7 +297,12 @@ impl HALVM for HAL {
         let mut base_addr = pgtbl.addr as usize;
         base_addr = (base_addr >> PAGE_OFFSET) | (8 << 60); // base addr + 39bit addressing
         unsafe {
-            asm!("csrw satp, {}", in(reg) base_addr);
+            asm!(
+                "sfence.vma zero, zero",
+                "csrw satp, {}",
+                "sfence.vma zero, zero",
+                in(reg) base_addr
+            );
         }
     }
 }
@@ -391,10 +396,13 @@ fn s_extern() {
 /// Ideally general handler init for riscv
 impl HALIntExc for HAL {
     fn handler_setup() {
+        log!(Error, "WE DON'T HAVE UART ACCESS AND SIE IS NOT SET CURRENTLY!!!");
         unsafe {
             asm!(
                 // I should clear SIE here and restore later TODO
-                "csrw stvec, __strapvec"
+                "la {hold}, __strapvec",
+                "csrw stvec, {hold}",
+                hold = out(reg) _,
             );
         }
         plic::global_init();
