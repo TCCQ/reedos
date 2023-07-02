@@ -1,6 +1,6 @@
 //! Kernel trap handlers.
-use crate::device::{clint, virtio};
-use crate::hw::{riscv, param};
+// use crate::device::{clint, virtio};
+// use crate::hw::{riscv, param};
 
 use crate::log;
 
@@ -19,12 +19,6 @@ extern "C" {
 //     retpc: usize, // Return from trap program counter value.
 //     regs: [usize; 32],
 // }
-
-/// These are the cause numbers for the regular s mode handler. I don't
-/// see any reason they need to be public.
-///
-/// TODO how can we make these generic over 32/64 bit width?
-const S_EXTERN_IRQ: u64 = 0x9 | ( 1 << 63);
 
 /// Write the supervisor trap vector to stvec register on each hart.
 pub fn init() {

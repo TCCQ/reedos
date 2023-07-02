@@ -34,7 +34,7 @@ pub mod asm;
 pub mod device;
 pub mod hw;
 pub mod lock;
-pub mod trap;
+// pub mod trap;
 pub mod vm;
 // pub mod process;
 pub mod file;
