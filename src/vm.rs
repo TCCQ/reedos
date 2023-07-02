@@ -132,53 +132,18 @@ fn pagetable_interrupt_stack_setup(pt: &PageTable) {
 /// Finally map, the remaining physical memory to kernel virtual memory as
 /// the kernel 'heap'.
 pub fn kpage_init() -> Result<PageTable, VmError> {
-    // let base = unsafe {
-    //     PAGEPOOL
-    //         .get_mut()
-    //         .unwrap()
-    //         .palloc()
-    //         .expect("Couldn't allocate root kernel page table.")
-    // };
     let kpage_table = match HAL::pgtbl_new_empty() {
         Ok(p) => p,
         Err(_) => {
             panic!("Could not allocate a kernel page table!");
         }
     };
-    // //log!(Debug, "Kernel page table base addr: {:#02x}", base.addr.addr());
+    // we have acquired the table, now fill it
+
+    // figure out what the hardware wants.
 
     // this closure lets us handle all of the error sources at once
     let map_pages = || -> Result<(), HALVMError> {
-        HAL::pgtbl_insert_range(
-            kpage_table,
-            UART_BASE as *mut usize,
-            UART_BASE as *mut usize,
-            PAGE_SIZE,
-            PageMapFlags::Read | PageMapFlags::Write
-        )?;
-        log!(Debug, "Successfully mapped UART into kernel pgtable...");
-
-        const PLIC_BASE: usize = 0xc000000;
-        const PLIC_SIZE: usize = 0x400000;
-        log!(Error, "ADD ISOLATION FOR HW SPECIFIC MAPPINGS (PLIC)!!!!");
-
-        HAL::pgtbl_insert_range(
-            kpage_table,
-            PLIC_BASE as *mut usize,
-            PLIC_BASE as *mut usize,
-            PLIC_SIZE,
-            PageMapFlags::Read | PageMapFlags::Write
-        )?;
-        log!(Debug, "Successfully mapped PLIC into kernel pgtable...");
-
-        HAL::pgtbl_insert_range(
-            kpage_table,
-            VIRTIO_BASE as *mut usize,
-            VIRTIO_BASE as *mut usize,
-            VIRTIO_SIZE,
-            PageMapFlags::Read | PageMapFlags::Write
-        )?;
-        log!(Debug, "Successfully mapped PLIC into kernel pgtable...");
         HAL::pgtbl_insert_range(
             kpage_table,
             DRAM_BASE,
@@ -186,10 +151,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             text_end().addr() - DRAM_BASE.addr(),
             PageMapFlags::Read | PageMapFlags::Execute
         )?;
-        log!(
-            Debug,
-            "Succesfully mapped kernel text into kernel pgtable..."
-        );
+        log!(Debug, "Succesfully mapped kernel text into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
@@ -198,10 +160,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             rodata_end().addr() - text_end().addr(),
             PageMapFlags::Read
         )?;
-        log!(
-            Debug,
-            "Succesfully mapped kernel rodata into kernel pgtable..."
-        );
+        log!(Debug, "Succesfully mapped kernel rodata into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
@@ -210,10 +169,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             data_end().addr() - rodata_end().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
-        log!(
-            Debug,
-            "Succesfully mapped kernel data into kernel pgtable..."
-        );
+        log!(Debug, "Succesfully mapped kernel data into kernel pgtable...");
 
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
         // problem.
@@ -280,6 +236,19 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         log!(Debug, "Succesfully mapped kernel heap...");
+
+        // finished all generic mappings, now do hardware mappings
+        let to_map = HAL::kernel_reserved_areas();
+        for (area, flags) in to_map {
+            HAL::pgtbl_insert_range(
+                kpage_table,
+                area.start(),
+                area.end(),
+                PAGE_SIZE * area.num,
+                flags
+            )?;
+        }
+        log!(Debug, "Successfully mapped all hardware specifics...");
         Ok(())
     };
 
@@ -362,6 +331,8 @@ pub fn pfree(page: Page) -> Result<(), VmError> {
 
 // -------------------------------------------------------------------
 
+// TODO consider discovery mechanism to test if allocation is up yet
+
 /// Out facing interface for physical pages. Automatically cleaned up
 /// on drop. Intentionally does not impliment clone/copy/anything.
 pub struct PhysPageExtent {
@@ -370,6 +341,13 @@ pub struct PhysPageExtent {
 }
 
 impl PhysPageExtent {
+    pub fn new(head: usize, num: usize) -> Self {
+        Self {
+            head: Page { addr: head as *mut usize},
+            num,
+        }
+    }
+
     pub fn start(&self) -> *mut usize {
         self.head.addr
     }

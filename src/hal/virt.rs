@@ -14,6 +14,8 @@
 
 use core::arch::asm;
 
+use alloc::vec;
+
 use super::*;
 use crate::vm::{palloc, pfree};
 
@@ -177,6 +179,8 @@ impl HALSerial for HAL {
     }
 }
 
+// -------------------------------------------------------------------
+
 impl HALTimer for HAL {
     // TODO we need mtime for mtimecmp type stuff here. See the comment in hal.rs
     fn timer_setup() {
@@ -187,6 +191,8 @@ impl HALTimer for HAL {
         todo!()
     }
 }
+
+// -------------------------------------------------------------------
 
 fn flags_hal_to_ptable(general: PageMapFlags) -> Result<usize, HALVMError> {
     let mut out: usize = 0;
@@ -233,6 +239,30 @@ fn table_hal_to_ptable(general: PageTable) -> ptable::PageTable {
 impl HALVM for HAL {
     fn pgtbl_setup() {
         // I don't think I need any global setup. Kernel page table creation happens later.
+    }
+
+    fn kernel_reserved_areas() -> Vec<(PhysPageExtent, PageMapFlags)> {
+        // It's not clear what of this might / should be handled by opensbi
+
+        const CLINT_BASE: usize = 0x2000000;
+        // We don't map the CLINT because we can use opensbi for that
+        // (timers). I don't know whether we can/should be mapping the
+        // PLIC either.
+
+        const UART_BASE: usize = 0x10000000;
+        const UART_SIZE: usize = PAGE_SIZE;
+
+        const PLIC_BASE: usize = 0xc000000;
+        const PLIC_SIZE: usize = 0x400000;
+
+        const VIRTIO_BASE:usize = 0x10001000;
+        const VIRTIO_SIZE: usize = 0x4000;
+
+        vec!(
+            // (PhysPageExtent::new(UART_BASE, PAGE_SIZE), PageMapFlags::Read | PageMapFlags::Write),
+            (PhysPageExtent::new(PLIC_BASE, PLIC_SIZE), PageMapFlags::Read | PageMapFlags::Write),
+            (PhysPageExtent::new(VIRTIO_BASE, VIRTIO_SIZE), PageMapFlags::Read | PageMapFlags::Write),
+        )
     }
 
     /// This call is only valid after other non-hal stuff has been
@@ -306,6 +336,7 @@ impl HALVM for HAL {
         }
     }
 }
+
 // -------------------------------------------------------------------
 
 fn read_scause() -> usize {
@@ -318,6 +349,12 @@ fn read_scause() -> usize {
         out
     }
 }
+
+/// These are the cause numbers for the regular s mode handler. I don't
+/// see any reason they need to be public.
+///
+/// TODO how can we make these generic over 32/64 bit width?
+const S_EXTERN_IRQ: usize = 0x9 | ( 1 << 63);
 
 /// Supervisor mode trap handler.
 #[no_mangle]
@@ -409,6 +446,8 @@ impl HALIntExc for HAL {
     }
 }
 
+// -------------------------------------------------------------------
+
 impl HALCPU for HAL {
     fn isolate() {
         // This is valid to be empty, as opensbi only starts a single
@@ -419,6 +458,8 @@ impl HALCPU for HAL {
         todo!("If you haven't done CPU number discovery, you should do that first.")
     }
 }
+
+// -------------------------------------------------------------------
 
 impl HALBacking for HAL {
     fn global_setup() {

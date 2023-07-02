@@ -1,9 +1,10 @@
+use alloc::vec::Vec;
 /// This module should contain the details of the hardware abstraction
 /// layer
 
 use bitflags::bitflags;
 
-use crate::vm::palloc::Page;
+use crate::vm::{palloc::Page, PhysPageExtent};
 
 #[cfg(feature = "hal-virt")]
 pub mod virt;
@@ -107,6 +108,15 @@ pub const PAGE_OFFSET: usize = 12;
 
 pub trait HALVM {
     // Page table stuff
+
+    /// Return a set of memory regions that should be mapped into the
+    /// kernel page table with the given permissions. It is an error
+    /// to call this before starting allocation in the `vm` module. It
+    /// is an error to call this before `pgtbl_setup`. It is the
+    /// implementer of HALVM's responsibility to ensure that there are
+    /// not overlaps with the generic kernel mappings. Hardware
+    /// specific mappings will overwrite general mappings
+    fn kernel_reserved_areas() -> Vec<(PhysPageExtent, PageMapFlags)>;
 
     /// Call once before pgtbl use
     fn pgtbl_setup();
