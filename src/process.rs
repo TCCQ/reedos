@@ -7,28 +7,28 @@
 use alloc::collections::vec_deque::*;
 use core::assert;
 use core::mem::{size_of, MaybeUninit};
-use core::ptr::{copy_nonoverlapping, null_mut};
+use core::ptr::copy_nonoverlapping;
 use core::cell::OnceCell;
 
+use crate::hal::*;
 // use crate::hw::HartContext;
 // use crate::trap::TrapFrame;
-use crate::vm::ptable::*;
+// use crate::vm::ptable::*;
 use crate::vm::VmError;
-use crate::hw::riscv::read_tp;
-use crate::hw::param::*;
+// use crate::hw::riscv::read_tp;
+// use crate::hw::param::*;
 use crate::vm::{request_phys_page, PhysPageExtent};
 use crate::file::elf64::*;
 use crate::hw::hartlocal::*;
 use crate::lock::mutex::Mutex;
+use crate::id::IdGenerator;
 
-
-mod pid;
-use crate::process::pid::*;
-// We want to be able to use pid stuff, but nobody above us needs it
 
 mod scheduler;
 use crate::process::scheduler::ProcessQueue;
 
+
+static mut PID_COUNTER: Mutex<IdGenerator> = Mutex::new(IdGenerator::new());
 
 #[allow(unused_variables)]
 mod syscall;
@@ -42,7 +42,6 @@ static mut QUEUE: OnceCell<Mutex<ProcessQueue>> = OnceCell::new();
 /// Global init for all process related stuff. Not exaustive, also
 /// need hartlocal_info_interrupt_stack_init
 pub fn init_process_structure() {
-    init_pid_subsystem();
     unsafe {
         match QUEUE.set(Mutex::new(ProcessQueue::new())) {
             Ok(()) => {},
@@ -92,19 +91,42 @@ pub struct Process {
 
 }
 
+// TODO merge this with ELFError?
+#[derive(Debug)]
+pub enum ProcError {
+    OOM,
+}
+
+fn user_process_flags(r: bool, w: bool, e: bool) -> PageMapFlags {
+    PageMapFlags::User |
+    if r {PageMapFlags::Read} else {PageMapFlags::empty()} |
+    if w {PageMapFlags::Write} else {PageMapFlags::empty()} |
+    if e {PageMapFlags::Execute} else {PageMapFlags::empty()}
+}
+
+fn kernel_process_flags(r: bool, w: bool, e: bool) -> PageMapFlags {
+    PageMapFlags::empty() |
+    if r {PageMapFlags::Read} else {PageMapFlags::empty()} |
+    if w {PageMapFlags::Write} else {PageMapFlags::empty()} |
+    if e {PageMapFlags::Execute} else {PageMapFlags::empty()}
+}
+
 impl Process {
     /// Construct a new process. Notably does not allocate anything or
     /// mean anything until you initialize it.
-    pub fn new_uninit() -> Self {
+    pub fn new_uninit() -> Result<Self, ProcError> {
         let out = Self {
             id: 0,
             state: ProcessState::Uninitialized,
-            pgtbl: PageTable::new(null_mut()),
+            pgtbl: match HAL::pgtbl_new_empty() {
+                Ok(p) => p,
+                Err(_) => return Err(ProcError::OOM),
+            },
             phys_pages: MaybeUninit::uninit(),
             saved_pc: 0,
             saved_sp: 0,
         };
-        out
+        Ok(out)
     }
 
     pub fn initialize64(&mut self, elf: &ELFProgram) -> Result<(), ELFError> {
@@ -112,14 +134,15 @@ impl Process {
 
         match self.state {
             ProcessState::Uninitialized => {
-                self.id = generate_new_pid();
-                let pt = request_phys_page(1)
-                    .expect("Could not allocate a page table for a new process.");
-                self.pgtbl = PageTable::new(pt.start());
+                self.id = unsafe {PID_COUNTER.lock().generate()};
+                self.pgtbl = match HAL::pgtbl_new_empty() {
+                    Ok(p) => p,
+                    Err(_) => return Err(ELFError::FailedAlloc),
+                };
                 self.phys_pages.write(VecDeque::new());
-                unsafe {
-                    self.phys_pages.assume_init_mut().push_back(pt);
-                }
+                // phys_pages DOES NOT include the pagetable. The
+                // pagetable is floating memory, and MUST be cleaned
+                // up with HAL::pgtbl_free
             },
             ProcessState::Running => {
                 panic!("Tried to re-initialize a running process!");
@@ -142,109 +165,93 @@ impl Process {
     // TODO is this the right error type?
     fn map_kernel_text(&mut self) -> Result<(), VmError> {
         // This is currently a large copy of kpage_init with a few tweaks
-        page_map(
-            self.pgtbl,
-            text_start(),
-            text_start(),
-            text_end().addr() - text_start().addr(),
-            kernel_process_flags(true, false, true)
-        )?;
-        // log!(
-        //     Debug,
-        //     "Sucessfully mapped kernel text into process pgtable..."
-        // );
 
-        page_map(
-            self.pgtbl,
-            text_end(),
-            text_end() as *mut usize,
-            rodata_end().addr() - text_end().addr(),
-            kernel_process_flags(true, false, false),
-        )?;
-        // log!(
-        //     Debug,
-        //     "Succesfully mapped kernel rodata into process pgtable..."
-        // );
-
-        page_map(
-            self.pgtbl,
-            rodata_end(),
-            rodata_end() as *mut usize,
-            data_end().addr() - rodata_end().addr(),
-            kernel_process_flags(true, true, false),
-        )?;
-        // log!(
-        //     Debug,
-        //     "Succesfully mapped kernel data into process pgtable..."
-        // );
-
-        // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
-        // problem.
-        let base = stacks_start();
-        for s in 0..NHART {
-            let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 3)) };
-            page_map(
+        // same closure trick as the main kernel mapping to collect errors
+        let map_kernel = || {
+            HAL::pgtbl_insert_range(
                 self.pgtbl,
-                stack,
-                stack,
-                PAGE_SIZE * 2,
+                HAL::text_start() as VirtAddress,
+                HAL::text_start() as PhysAddress,
+                HAL::text_end().addr() - HAL::text_start().addr(),
+                kernel_process_flags(true, false, true)
+            )?;
+
+            HAL::pgtbl_insert_range(
+                self.pgtbl,
+                HAL::text_end(),
+                HAL::text_end() as *mut usize,
+                HAL::rodata_end().addr() - HAL::text_end().addr(),
+                kernel_process_flags(true, false, false),
+            )?;
+
+            HAL::pgtbl_insert_range(
+                self.pgtbl,
+                HAL::rodata_end(),
+                HAL::rodata_end() as *mut usize,
+                HAL::data_end().addr() - HAL::rodata_end().addr(),
                 kernel_process_flags(true, true, false),
             )?;
-        //     log!(
-        //         Debug,
-        //         "Succesfully mapped kernel stack {} into process pgtable...",
-        //         s
-        //     );
+
+            // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
+            // problem.
+            let base = HAL::stacks_start();
+            for s in 0..HAL::NHART {
+                let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 3)) };
+                HAL::pgtbl_insert_range(
+                    self.pgtbl,
+                    stack,
+                    stack,
+                    PAGE_SIZE * 2,
+                    kernel_process_flags(true, true, false),
+                )?;
+            }
+
+            // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
+            // problem.
+            let base = HAL::intstacks_start();
+            for i in 0..HAL::NHART {
+                let m_intstack = unsafe { base.byte_add(PAGE_SIZE * (1 + i * 4)) };
+                // Map hart i m-mode handler.
+                HAL::pgtbl_insert_range(
+                    self.pgtbl,
+                    m_intstack,
+                    m_intstack,
+                    PAGE_SIZE,
+                    kernel_process_flags(true, true, false),
+                )?;
+                // Map hart i s-mode handler
+                let s_intstack = unsafe { m_intstack.byte_add(PAGE_SIZE * 2) };
+                HAL::pgtbl_insert_range(
+                    self.pgtbl,
+                    s_intstack,
+                    s_intstack,
+                    PAGE_SIZE,
+                    kernel_process_flags(true, true, false),
+                )?;
+            }
+
+            HAL::pgtbl_insert_range(
+                self.pgtbl,
+                HAL::bss_start(),
+                HAL::bss_start(),
+                HAL::bss_end().addr() - HAL::bss_start().addr(),
+                kernel_process_flags(true, true, false),
+            )?;
+
+            HAL::pgtbl_insert_range(
+                self.pgtbl,
+                HAL::bss_end(),
+                HAL::bss_end(),
+                HAL::memory_end().addr() - HAL::bss_end().addr(),
+                kernel_process_flags(true, true, false),
+            )?;
+            Ok::<(), HALVMError>(())
+        };
+
+        match map_kernel() {
+            Ok(()) => Ok(()),
+            Err(_) => Err(VmError::Koom), // TODO our error handling/typing/naming is totally unclear
         }
-
-        // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
-        // problem.
-        let base = intstacks_start();
-        for i in 0..NHART {
-            let m_intstack = unsafe { base.byte_add(PAGE_SIZE * (1 + i * 4)) };
-            // Map hart i m-mode handler.
-            page_map(
-                self.pgtbl,
-                m_intstack,
-                m_intstack,
-                PAGE_SIZE,
-                kernel_process_flags(true, true, false),
-            )?;
-            // Map hart i s-mode handler
-            let s_intstack = unsafe { m_intstack.byte_add(PAGE_SIZE * 2) };
-            page_map(
-                self.pgtbl,
-                s_intstack,
-                s_intstack,
-                PAGE_SIZE,
-                kernel_process_flags(true, true, false),
-            )?;
-        //     log!(
-        //         Debug,
-        //         "Succesfully mapped interrupt stack for hart {} into process pgtable...",
-        //         i
-        //     );
-        }
-
-        page_map(
-            self.pgtbl,
-            bss_start(),
-            bss_start(),
-            bss_end().addr() - bss_start().addr(),
-            kernel_process_flags(true, true, false),
-        )?;
-        // log!(Debug, "Succesfully mapped kernel bss into process...");
-
-        page_map(
-            self.pgtbl,
-            bss_end(),
-            bss_end(),
-            memory_end().addr() - bss_end().addr(),
-            kernel_process_flags(true, true, false),
-        )?;
-        // log!(Debug, "Succesfully mapped kernel heap into process...");
-
-        Ok(())
     }
 
 
@@ -266,8 +273,8 @@ impl Process {
             let segment = unsafe { *ptr.add(i as usize) };
             if segment.seg_type != ProgramSegmentType::Load { continue; }
             else if segment.vmem_addr < 0x1000  { return Err(ELFError::MappedZeroPage) }
-            else if segment.vmem_addr >= text_start().addr() as u64 &&
-                segment.vmem_addr <= text_end().addr() as u64 {
+            else if segment.vmem_addr >= HAL::text_start().addr() as u64 &&
+                segment.vmem_addr <= HAL::text_end().addr() as u64 {
                     return Err(ELFError::MappedKernelText)
                 }
             else if segment.size_in_file != segment.size_in_memory {return Err(ELFError::InequalSizes)}
@@ -289,7 +296,7 @@ impl Process {
                 (segment.flags as u16) & PROG_SEG_EXEC != 0
             );
 
-            match page_map(
+            match HAL::pgtbl_insert_range(
                 self.pgtbl,
                 VirtAddress::from(segment.vmem_addr as *mut usize),
                 PhysAddress::from(pages.start() as *mut usize),
@@ -317,10 +324,10 @@ impl Process {
         };
         // TODO guard page? you'll get a page fault anyway?
         let process_stack_location = unsafe {
-            text_start().sub(0x1000 * STACK_PAGES)
+            HAL::text_start().sub(0x1000 * STACK_PAGES)
         };
         // under the kernel text
-        match page_map(
+        match HAL::pgtbl_insert_range(
             self.pgtbl,
             VirtAddress::from(process_stack_location),
             PhysAddress::from(stack_pages.start()),
@@ -363,7 +370,7 @@ impl Process {
         extern "C" {pub fn process_start_asm(pc: usize, pgtbl: usize, sp: usize) -> !;}
 
         let saved_pc = self.saved_pc;
-        let pgtbl_base = self.pgtbl.base as usize;
+        let pgtbl_base = self.pgtbl.addr as usize;
         let saved_sp = self.saved_sp;
         let gpi = GPInfo::new(self);
         save_gp_info64(gpi);
@@ -373,7 +380,7 @@ impl Process {
             // not mapped into the process pagetable and it shouldn't
             // be. We want to do that later in the asm.
             //
-            // relies on args in a0, a1, a2 in order
+            // relies on args in a0, a1, a2 in order (see extern C)
             process_start_asm(saved_pc, pgtbl_base, saved_sp);
         }
     }
@@ -394,7 +401,7 @@ impl Process {
         extern "C" {pub fn process_resume_asm(pc: usize, pgtbl: usize, sp: usize) -> !;}
 
         let saved_pc = self.saved_pc;
-        let pgtbl_base = self.pgtbl.base as usize;
+        let pgtbl_base = self.pgtbl.addr as usize;
         let saved_sp = self.saved_sp;
         let gpi = GPInfo::new(self);
         save_gp_info64(gpi);
@@ -413,7 +420,9 @@ impl Drop for Process {
             }
             _ => {}
         }
-        return_used_pid(self.id);
+        unsafe { PID_COUNTER.lock().free(self.id); }
+
+        HAL::pgtbl_free(self.pgtbl);
         // dropping the phys pages vector will automatically clean
         // those up
     }
@@ -481,7 +490,7 @@ pub extern "C" fn process_exit_rust(exit_code: isize) -> ! {
 pub fn _test_process_spin() {
     let bytes = include_bytes!("programs/spin/spin.elf");
     let program = ELFProgram::new64(&bytes[0] as *const u8);
-    let mut proc = Process::new_uninit();
+    let mut proc = Process::new_uninit().expect("Failed to create test process");
 
     match proc.initialize64(&program) {
         Ok(_) => {},
@@ -493,7 +502,7 @@ pub fn _test_process_spin() {
 pub fn _test_process_syscall_basic() {
     let bytes = include_bytes!("programs/syscall-basic/syscall-basic.elf");
     let program = ELFProgram::new64(&bytes[0] as *const u8);
-    let mut proc = Process::new_uninit();
+    let mut proc = Process::new_uninit().expect("Failed to create test process");
 
     match proc.initialize64(&program) {
         Ok(_) => {},
@@ -505,7 +514,7 @@ pub fn _test_process_syscall_basic() {
 pub fn test_multiprocess_syscall() {
     let bytes = include_bytes!("programs/syscall-basic/syscall-basic.elf");
     let program = ELFProgram::new64(&bytes[0] as *const u8);
-    let mut proc = Process::new_uninit();
+    let mut proc = Process::new_uninit().expect("Failed to create test process");
 
     match proc.initialize64(&program) {
         Ok(_) => {},
@@ -513,7 +522,7 @@ pub fn test_multiprocess_syscall() {
     }
 
     for _ in 0..4 {
-        let mut proc = Process::new_uninit();
+        let mut proc = Process::new_uninit().expect("Failed to create test process");
 
         match proc.initialize64(&program) {
             Ok(_) => {},

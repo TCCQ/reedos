@@ -142,6 +142,7 @@ pub trait HALVM {
     /// appropriate permissions in destination page table.
     fn pgtbl_swap(pgtbl: &PageTable);
 
+    // TODO make this a drop trait
     fn pgtbl_free(pgtbl: PageTable);
 }
 

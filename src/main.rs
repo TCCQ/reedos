@@ -32,13 +32,14 @@ pub mod log;
 
 pub mod asm;
 pub mod device;
-// pub mod hw;
+pub mod hw;
 pub mod lock;
 // pub mod trap;
 pub mod vm;
-// pub mod process;
+pub mod process;
 pub mod file;
 pub mod hal;
+pub mod id;
 
 pub static BANNER: &str = r#"
 Mellow Swirled,
@@ -50,7 +51,6 @@ Mellow Swirled,
 
 "#;
 
-// use crate::hw::hartlocal;
 // use crate::device::plic;
 // use crate::hw::param;
 // use crate::hw::riscv::*;
