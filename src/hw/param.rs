@@ -70,17 +70,8 @@ linker_var!(_intstacks_end, intstacks_end);
 
 linker_var!(_memory_end, memory_end);
 
-linker_var!(_global_pointer, global_pointer);
+// linker_var!(_global_pointer, global_pointer);
 
 // Run parameters
 pub const NHART: usize = 2;
 
-pub static BANNER: &str = r#"
-Mellow Swirled,
-                       __
-   ________  ___  ____/ /___  _____
-  / ___/ _ \/ _ \/ __  / __ \/ ___/
- / /  /  __/  __/ /_/ / /_/ (__  )
-/_/   \___/\___/\__,_/\____/____/
-
-"#;

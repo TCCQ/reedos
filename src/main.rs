@@ -32,7 +32,7 @@ pub mod log;
 
 pub mod asm;
 pub mod device;
-pub mod hw;
+// pub mod hw;
 pub mod lock;
 // pub mod trap;
 pub mod vm;
@@ -40,10 +40,19 @@ pub mod vm;
 pub mod file;
 pub mod hal;
 
+pub static BANNER: &str = r#"
+Mellow Swirled,
+                       __
+   ________  ___  ____/ /___  _____
+  / ___/ _ \/ _ \/ __  / __ \/ ___/
+ / /  /  __/  __/ /_/ / /_/ (__  )
+/_/   \___/\___/\__,_/\____/____/
+
+"#;
 
 // use crate::hw::hartlocal;
 // use crate::device::plic;
-use crate::hw::param;
+// use crate::hw::param;
 // use crate::hw::riscv::*;
 use crate::lock::condition::ConditionVar;
 use crate::hal::*;
@@ -133,7 +142,7 @@ pub extern "C" fn main() -> ! {
     HAL::isolate();
 
     hal::HAL::global_setup();
-    println!("{}", param::BANNER);
+    println!("{}", BANNER);
     log!(Info, "Bootstrapping on hart0...");
     // trap::init();
     // log!(Info, "Finished trap init...");

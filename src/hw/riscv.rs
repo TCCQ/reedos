@@ -311,7 +311,3 @@ pub fn flush_tlb() {
     }
 }
 
-// Riscv unprivileged spec A.4.2: I/O Ordering
-pub fn io_barrier() {
-    unsafe { asm!("fence w,o"); }
-}

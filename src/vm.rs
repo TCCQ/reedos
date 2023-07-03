@@ -10,7 +10,7 @@ use core::cell::OnceCell;
 use core::arch::asm;
 
 use crate::lock::mutex::Mutex;
-use crate::hw::param::*;
+// use crate::hw::param::*;
 use crate::hal::*;
 use global::Galloc;
 use palloc::*;
@@ -71,7 +71,7 @@ pub enum VmError {
 /// TODO better error type
 pub fn global_init() -> Result<PageTable, ()> {
     unsafe {
-        match PAGEPOOL.set(PagePool::new(bss_end(), memory_end())) {
+        match PAGEPOOL.set(PagePool::new(HAL::bss_end(), HAL::memory_end())) {
             Ok(_) => {}
             Err(_) => {
                 panic!("vm double init.")
@@ -146,35 +146,35 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
     let map_pages = || -> Result<(), HALVMError> {
         HAL::pgtbl_insert_range(
             kpage_table,
-            DRAM_BASE,
-            DRAM_BASE as *mut usize,
-            text_end().addr() - DRAM_BASE.addr(),
+            HAL::DRAM_BASE,
+            HAL::DRAM_BASE as *mut usize,
+            HAL::text_end().addr() - HAL::DRAM_BASE.addr(),
             PageMapFlags::Read | PageMapFlags::Execute
         )?;
         log!(Debug, "Succesfully mapped kernel text into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
-            text_end(),
-            text_end() as *mut usize,
-            rodata_end().addr() - text_end().addr(),
+            HAL::text_end(),
+            HAL::text_end() as *mut usize,
+            HAL::rodata_end().addr() - HAL::text_end().addr(),
             PageMapFlags::Read
         )?;
         log!(Debug, "Succesfully mapped kernel rodata into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
-            rodata_end(),
-            rodata_end() as *mut usize,
-            data_end().addr() - rodata_end().addr(),
+            HAL::rodata_end(),
+            HAL::rodata_end() as *mut usize,
+            HAL::data_end().addr() - HAL::rodata_end().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         log!(Debug, "Succesfully mapped kernel data into kernel pgtable...");
 
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
         // problem.
-        let base = stacks_start();
-        for s in 0..NHART {
+        let base = HAL::stacks_start();
+        for s in 0..HAL::NHART {
             let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 3)) };
             HAL::pgtbl_insert_range(
                 kpage_table,
@@ -192,8 +192,8 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
 
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
         // problem.
-        let base = intstacks_start();
-        for i in 0..NHART {
+        let base = HAL::intstacks_start();
+        for i in 0..HAL::NHART {
             let m_intstack = unsafe { base.byte_add(PAGE_SIZE * (1 + i * 4)) };
             // Map hart i m-mode handler.
             HAL::pgtbl_insert_range(
@@ -221,18 +221,18 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
 
         HAL::pgtbl_insert_range(
             kpage_table,
-            bss_start(),
-            bss_start(),
-            bss_end().addr() - bss_start().addr(),
+            HAL::bss_start(),
+            HAL::bss_start(),
+            HAL::bss_end().addr() - HAL::bss_start().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         log!(Debug, "Succesfully mapped kernel bss...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
-            bss_end(),
-            bss_end(),
-            memory_end().addr() - bss_end().addr(),
+            HAL::bss_end(),
+            HAL::bss_end(),
+            HAL::memory_end().addr() - HAL::bss_end().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         log!(Debug, "Succesfully mapped kernel heap...");

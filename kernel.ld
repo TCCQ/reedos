@@ -12,6 +12,7 @@ ENTRY( _entry )
 
 SECTIONS
 {
+  PROVIDE(_memory_start = 0x80000000);
   . = 0xA0000000;
   .text : {
     PROVIDE(_text_start = .);

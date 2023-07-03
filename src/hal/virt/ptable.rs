@@ -1,9 +1,11 @@
 //! Page table
-use core::assert;
-
 // VA: 39bits, PA: 56bits
 // PTE size = 8 bytes
-use crate::hw::riscv::*;
+// use crate::hw::riscv::*;
+
+use core::assert;
+use core::arch::asm;
+
 use crate::vm::*;
 use crate::hal::*;                   // virt/hal stuff
 
@@ -91,6 +93,17 @@ impl From<PTEntry> for PageTable {
         PageTable {
             base: pte_to_phy(pte),
         }
+    }
+}
+
+// stolen from riscv.rs
+pub fn flush_tlb() {
+    unsafe {
+        asm!("sfence.vma zero, zero");
+    }
+}pub fn write_satp(pt: usize) {
+    unsafe {
+        asm!("csrw satp, {}", in(reg) pt);
     }
 }
 

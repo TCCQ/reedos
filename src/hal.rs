@@ -202,7 +202,60 @@ pub trait HALCPU {
     fn wake_one<F: Fn() -> !>(start: F) -> Result<(), HALCPUError>;
 }
 
-pub trait HALBacking: HALSerial + HALTimer + HALVM + HALIntExc + HALCPU {
+// -------------------------------------------------------------------
+
+/// This wraps all hardware discovery.
+///
+/// TODO when we do device tree stuff, it will be exposed here
+pub trait HALDiscover {
+    fn discover_setup();
+
+    // Const in the short term, but we will see
+    const NHART: usize;
+
+    // I think this is safe to be a const. It can change when we have
+    // reason for it.
+    const DRAM_BASE: *mut usize;
+}
+
+// -------------------------------------------------------------------
+
+/// Provide info about the sections of the kernel. This trait must be
+/// be safe to call before allocation is brought up.
+pub trait HALSections {
+    /// This may very well be empty
+    fn sections_setup();
+
+    fn text_start() -> *mut usize;
+    fn text_end() -> *mut usize;
+
+    fn bss_start() -> *mut usize;
+    fn bss_end() -> *mut usize;
+
+    fn rodata_start() -> *mut usize;
+    fn rodata_end() -> *mut usize;
+
+    fn data_start() -> *mut usize;
+    fn data_end() -> *mut usize;
+
+    fn stacks_start() -> *mut usize;
+    fn stacks_end() -> *mut usize;
+
+    // TODO deprecate? wait for clarity as for context switches under
+    // opensbi
+    fn intstacks_start() -> *mut usize;
+    fn intstacks_end() -> *mut usize;
+
+    fn memory_start() -> *mut usize;
+    fn memory_end() -> *mut usize;
+}
+
+pub trait HALBacking:
+HALSerial + HALTimer +
+    HALVM + HALIntExc +
+    HALCPU + HALDiscover +
+    HALSections
+{
     /// Call on all CPUs on start, a single one will exit, and all others will hold, until a later wakeup call
 
     /// Run once before any of the rest of the kernel
