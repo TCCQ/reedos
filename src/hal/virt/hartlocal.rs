@@ -5,7 +5,25 @@ use core::arch::asm;
 use alloc::boxed::Box;
 
 use crate::process::Process;
-use crate::hw::riscv::{write_gp, read_gp};
+
+// utils
+
+/// Read and write the hart local global pointer register. In kernel
+/// space we will be using it to point to hart local kernel
+/// information including the current process to be / has been run
+pub fn write_gp(id: u64) {
+    unsafe {
+        asm!("mv gp, {}", in(reg) id);
+    }
+}
+
+pub fn read_gp() -> u64 {
+    let gp: u64;
+    unsafe {
+        asm!("mv {}, gp", out(reg) gp);
+    }
+    gp
+}
 
 /// What do we need to restore when returning from a process
 pub struct GPInfo {
@@ -48,9 +66,17 @@ pub fn restore_gp_info64() -> GPInfo {
     }
 }
 
+// The point of the process _new_no_alloc is that the initial contents
+// of the GPInfo are never valid, but they are also never freed, so we
+// can't safely alloc anything here. We are out of the range of Rust's
+// drop rules, so we have to C it ourselves. It is more important to
+// have this small but of uninitialized *VERY* unsafe memory contents
+// here and have an airtight API for saving and restoring only valid
+// values than the reverse.
+
 pub fn hartlocal_info_interrupt_stack_init() {
     let gpi = GPInfo {
-        current_process: Process::new_uninit(),
+        current_process: Process::_new_no_alloc(),
     };
     save_gp_info64(gpi);
     unsafe {

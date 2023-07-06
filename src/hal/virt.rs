@@ -9,18 +9,13 @@
 // TODO
 //
 // add failstate logging, for use with panics.
-//
-// add return value checking for opensbi calls
 
 use core::arch::asm;
-
+use core::ptr::addr_of_mut;
 use alloc::vec;
 
 use super::*;
 use crate::vm::{palloc, pfree};
-
-mod ptable;
-mod plic;
 
 
 // -------------------------------------------------------------------
@@ -193,6 +188,7 @@ impl HALTimer for HAL {
 }
 
 // -------------------------------------------------------------------
+mod ptable;
 
 fn flags_hal_to_ptable(general: PageMapFlags) -> Result<usize, HALVMError> {
     let mut out: usize = 0;
@@ -338,6 +334,7 @@ impl HALVM for HAL {
 }
 
 // -------------------------------------------------------------------
+mod plic;
 
 fn read_scause() -> usize {
     unsafe {
@@ -480,8 +477,6 @@ impl HALDiscover for HAL {
 // will work for multiple boards. But at the moment it's a good
 // middlground.
 
-use core::ptr::addr_of_mut;
-
 // This ugly two macro setup is gross, but I can't use just one to do
 // both cause each invocation would need to strattle both. And you
 // can't split impls so there is no workaround here.
@@ -554,6 +549,25 @@ impl HALSections for HAL {
 }
 
 // -------------------------------------------------------------------
+mod hartlocal;
+
+impl HALSwitch for HAL {
+    type GPInfo = hartlocal::GPInfo;
+
+    fn switch_setup() {
+        hartlocal::hartlocal_info_interrupt_stack_init();
+    }
+
+    fn save_gp_info(gpi: Self::GPInfo) {
+        hartlocal::save_gp_info64(gpi);
+    }
+
+    fn restore_gp_info() -> Self::GPInfo {
+        hartlocal::restore_gp_info64()
+    }
+}
+
+// -------------------------------------------------------------------
 
 impl HALBacking for HAL {
     fn global_setup() {
@@ -561,9 +575,9 @@ impl HALBacking for HAL {
         Self::serial_setup();
         Self::handler_setup(); // TODO, firgure out how opensbi works with traps
         Self::sections_setup();
+        Self::switch_setup();
         // Self::timer_setup();
         // Self::discover_setup();
         // Self::pgtbl_setup();
-
     }
 }

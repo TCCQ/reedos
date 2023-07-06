@@ -177,7 +177,6 @@ pub enum HALCPUError {
     OutOfCPU,
 }
 
-
 pub trait HALCPU {
     /// Call by all cpus, a single one will return. Others can be
     /// retrieved later with wake_one. This call should be used before
@@ -251,11 +250,42 @@ pub trait HALSections {
     fn memory_end() -> *mut usize;
 }
 
+
+// -------------------------------------------------------------------
+
+/// Trait the collect context switching info
+pub trait HALSwitch {
+    /// This type should contain the initial info that needs to be
+    /// presereved through a context switch. This should not include
+    /// things like the kernel page table which from the point of view
+    /// of the main kernel should be switched automatically, but
+    /// should contian things like the current process. Think of it
+    /// like the arguments to the first function after a context
+    /// switch.
+    ///
+    /// The implementation should provide a method of creating a
+    /// GPInfo structure, including a Process object to represent the
+    /// currently executing process.
+    type GPInfo;
+
+    /// called once before any of the switching occurs, just like the
+    /// rest.
+    fn switch_setup();
+
+    //GPInfo management is CPU local
+
+    /// Set the structure for the next restore.
+    fn save_gp_info(gpi: Self::GPInfo);
+
+    /// Restore the most recently saved structure.
+    fn restore_gp_info() -> Self::GPInfo;
+}
+
 pub trait HALBacking:
 HALSerial + HALTimer +
     HALVM + HALIntExc +
     HALCPU + HALDiscover +
-    HALSections
+    HALSections + HALSwitch
 {
     /// Call on all CPUs on start, a single one will exit, and all others will hold, until a later wakeup call
 

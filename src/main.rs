@@ -9,6 +9,7 @@
 #![feature(unsized_fn_params)]
 #![feature(box_into_inner)]
 #![feature(never_type)]
+#![feature(lazy_cell)]
 #![allow(dead_code)]
 // #![allow(unused_variables)]
 
@@ -32,7 +33,7 @@ pub mod log;
 
 pub mod asm;
 pub mod device;
-pub mod hw;
+// pub mod hw;
 pub mod lock;
 // pub mod trap;
 pub mod vm;

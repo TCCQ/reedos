@@ -9,6 +9,7 @@ use core::assert;
 use core::mem::{size_of, MaybeUninit};
 use core::ptr::copy_nonoverlapping;
 use core::cell::OnceCell;
+use core::cell::LazyCell;
 
 use crate::hal::*;
 // use crate::hw::HartContext;
@@ -19,7 +20,6 @@ use crate::vm::VmError;
 // use crate::hw::param::*;
 use crate::vm::{request_phys_page, PhysPageExtent};
 use crate::file::elf64::*;
-use crate::hw::hartlocal::*;
 use crate::lock::mutex::Mutex;
 use crate::id::IdGenerator;
 
@@ -28,7 +28,7 @@ mod scheduler;
 use crate::process::scheduler::ProcessQueue;
 
 
-static mut PID_COUNTER: Mutex<IdGenerator> = Mutex::new(IdGenerator::new());
+static mut PID_COUNTER: LazyCell<Mutex<IdGenerator>> = LazyCell::new(|| Mutex::new(IdGenerator::new()));
 
 #[allow(unused_variables)]
 mod syscall;
@@ -36,6 +36,8 @@ mod syscall;
 // any of it here
 
 // for now we wil be using a single locked round robin queue
+//
+// TODO Lazy? unclear
 static mut QUEUE: OnceCell<Mutex<ProcessQueue>> = OnceCell::new();
 
 
@@ -56,7 +58,7 @@ pub fn init_process_structure() {
 //
 // this is a *MOVE* of the process. Handle elsewhere
 fn get_running_process() -> Process {
-    restore_gp_info64().current_process
+    HAL::restore_gp_info().current_process
 }
 
 #[derive(Debug)]
@@ -112,6 +114,22 @@ fn kernel_process_flags(r: bool, w: bool, e: bool) -> PageMapFlags {
 }
 
 impl Process {
+    pub fn _new_no_alloc() -> Self {
+        // this should return a process struct that is completely
+        // uninitialized. It cannot allocate (a page table), and it
+        // cannot fail. Do not use this unless there is no way that
+        // the the process can be cleaned up safely. See
+        // virt/hartlocal.rs for a possible use case.
+        Self {
+            saved_pc: 0,
+            saved_sp: 0,
+            id: 0,
+            state: crate::process::ProcessState::Uninitialized,
+            pgtbl: crate::hal::PageTable {addr: core::ptr::null_mut()},
+            phys_pages: core::mem::MaybeUninit::uninit(),
+        }
+    }
+
     /// Construct a new process. Notably does not allocate anything or
     /// mean anything until you initialize it.
     pub fn new_uninit() -> Result<Self, ProcError> {
@@ -372,8 +390,8 @@ impl Process {
         let saved_pc = self.saved_pc;
         let pgtbl_base = self.pgtbl.addr as usize;
         let saved_sp = self.saved_sp;
-        let gpi = GPInfo::new(self);
-        save_gp_info64(gpi);
+        let gpi = <HAL as HALSwitch>::GPInfo::new(self);
+        HAL::save_gp_info(gpi);
 
         unsafe {
             // we can't use PageTable.write_satp here becuase this is
@@ -403,8 +421,8 @@ impl Process {
         let saved_pc = self.saved_pc;
         let pgtbl_base = self.pgtbl.addr as usize;
         let saved_sp = self.saved_sp;
-        let gpi = GPInfo::new(self);
-        save_gp_info64(gpi);
+        let gpi = <HAL as HALSwitch>::GPInfo::new(self);
+        HAL::save_gp_info(gpi);
 
         unsafe {
             process_resume_asm(saved_pc, pgtbl_base, saved_sp);
