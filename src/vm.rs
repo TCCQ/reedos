@@ -148,25 +148,25 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             kpage_table,
             HAL::DRAM_BASE,
             HAL::DRAM_BASE as *mut usize,
-            HAL::text_end().addr() - HAL::DRAM_BASE.addr(),
+            HAL::text_end().addr() - HAL::text_start().addr(),
             PageMapFlags::Read | PageMapFlags::Execute
         )?;
         log!(Debug, "Succesfully mapped kernel text into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
-            HAL::text_end(),
-            HAL::text_end() as *mut usize,
-            HAL::rodata_end().addr() - HAL::text_end().addr(),
+            HAL::rodata_start(),
+            HAL::rodata_start() as *mut usize,
+            HAL::rodata_end().addr() - HAL::rodata_start().addr(),
             PageMapFlags::Read
         )?;
         log!(Debug, "Succesfully mapped kernel rodata into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
-            HAL::rodata_end(),
-            HAL::rodata_end() as *mut usize,
-            HAL::data_end().addr() - HAL::rodata_end().addr(),
+            HAL::data_start(),
+            HAL::data_start() as *mut usize,
+            HAL::data_end().addr() - HAL::data_start().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         log!(Debug, "Succesfully mapped kernel data into kernel pgtable...");

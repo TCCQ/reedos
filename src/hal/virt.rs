@@ -17,6 +17,8 @@ use alloc::vec;
 use super::*;
 use crate::vm::{palloc, pfree};
 
+mod asm;
+
 
 // -------------------------------------------------------------------
 // Opensbi stuff
@@ -179,11 +181,11 @@ impl HALSerial for HAL {
 impl HALTimer for HAL {
     // TODO we need mtime for mtimecmp type stuff here. See the comment in hal.rs
     fn timer_setup() {
-        todo!()
+        log!(Error, "WE HAVEN'T IMPLEMENTED TIMERS YET!!!");
     }
 
     fn timer_set(_ticks: u64) {
-        todo!()
+        todo!("Add timers bucko.")
     }
 }
 
@@ -249,15 +251,17 @@ impl HALVM for HAL {
         const UART_SIZE: usize = PAGE_SIZE;
 
         const PLIC_BASE: usize = 0xc000000;
-        const PLIC_SIZE: usize = 0x400000;
+        const PLIC_SIZE: usize = 0x400000 / PAGE_SIZE;
 
         const VIRTIO_BASE:usize = 0x10001000;
-        const VIRTIO_SIZE: usize = 0x4000;
+        const VIRTIO_SIZE: usize = 0x4000 / PAGE_SIZE;
 
+        // TODO one of these mappings is causing issues? I think it
+        // might be overruling some opensbi firmware? totally unclear
         vec!(
             // (PhysPageExtent::new(UART_BASE, PAGE_SIZE), PageMapFlags::Read | PageMapFlags::Write),
-            (PhysPageExtent::new(PLIC_BASE, PLIC_SIZE), PageMapFlags::Read | PageMapFlags::Write),
-            (PhysPageExtent::new(VIRTIO_BASE, VIRTIO_SIZE), PageMapFlags::Read | PageMapFlags::Write),
+        //     (PhysPageExtent::new(PLIC_BASE, PLIC_SIZE), PageMapFlags::Read | PageMapFlags::Write),
+        //     (PhysPageExtent::new(VIRTIO_BASE, VIRTIO_SIZE), PageMapFlags::Read | PageMapFlags::Write),
         )
     }
 
@@ -459,7 +463,7 @@ impl HALCPU for HAL {
 // -------------------------------------------------------------------
 impl HALDiscover for HAL {
     fn discover_setup() {
-        todo!()
+        log!(Error, "WE ARE USING HARDCODED HARDWARE DISCOVERY!!!");
     }
 
     const NHART: usize = 1;
@@ -576,8 +580,8 @@ impl HALBacking for HAL {
         Self::handler_setup(); // TODO, firgure out how opensbi works with traps
         Self::sections_setup();
         Self::switch_setup();
-        // Self::timer_setup();
-        // Self::discover_setup();
-        // Self::pgtbl_setup();
+        Self::timer_setup();
+        Self::discover_setup();
+        Self::pgtbl_setup();
     }
 }

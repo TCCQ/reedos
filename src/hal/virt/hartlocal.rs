@@ -75,15 +75,18 @@ pub fn restore_gp_info64() -> GPInfo {
 // values than the reverse.
 
 pub fn hartlocal_info_interrupt_stack_init() {
-    let gpi = GPInfo {
-        current_process: Process::_new_no_alloc(),
-    };
-    save_gp_info64(gpi);
+    // let gpi = GPInfo {
+    //     current_process: Process::_new_no_alloc(),
+    // };
+    // save_gp_info64(gpi);
     unsafe {
         asm!(
             "csrr a0, sscratch",
             "addi a0, a0, -8",
-            "sd gp, (a0)",
+            "sd zero, (a0)",
+            // This used to write gp, but this is invalid anyway, and
+            // with just null here, we can do this before we have to
+            // pull up allocation!
             "csrw sscratch, a0",
             out("a0") _      // clobbers
         )

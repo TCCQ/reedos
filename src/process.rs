@@ -114,21 +114,24 @@ fn kernel_process_flags(r: bool, w: bool, e: bool) -> PageMapFlags {
 }
 
 impl Process {
-    pub fn _new_no_alloc() -> Self {
-        // this should return a process struct that is completely
-        // uninitialized. It cannot allocate (a page table), and it
-        // cannot fail. Do not use this unless there is no way that
-        // the the process can be cleaned up safely. See
-        // virt/hartlocal.rs for a possible use case.
-        Self {
-            saved_pc: 0,
-            saved_sp: 0,
-            id: 0,
-            state: crate::process::ProcessState::Uninitialized,
-            pgtbl: crate::hal::PageTable {addr: core::ptr::null_mut()},
-            phys_pages: core::mem::MaybeUninit::uninit(),
-        }
-    }
+    // pub fn _new_no_alloc() -> Self {
+    //     // this should return a process struct that is completely
+    //     // uninitialized. It cannot allocate (a page table), and it
+    //     // cannot fail. Do not use this unless there is no way that
+    //     // the the process can be cleaned up safely. See
+    //     // virt/hartlocal.rs for a possible use case.
+    //     Self {
+    //         saved_pc: 0,
+    //         saved_sp: 0,
+    //         id: 0,
+    //         state: crate::process::ProcessState::Uninitialized,
+    //         pgtbl: crate::hal::PageTable {addr: core::ptr::null_mut()},
+    //         phys_pages: core::mem::MaybeUninit::uninit(),
+    //     }
+    // }
+    //
+    // This is not enabled because it is unsafe. See hartlocal under
+    // virt for what it was going to be used for
 
     /// Construct a new process. Notably does not allocate anything or
     /// mean anything until you initialize it.
@@ -369,7 +372,7 @@ impl Process {
     /// actually preserved elsewhere (gp info) and restored. This is
     /// because we need to preserve info across entering and exiting
     /// the process, but no non-global rust location does that, and we
-    /// can't use a global array or anything like htat because we need
+    /// can't use a global array or anything like that because we need
     /// to have each hart's process's lifetime be independent, and
     /// further, it doesn't make sense to have Process be Sync when it
     /// is not.

@@ -229,9 +229,6 @@ pub trait HALSections {
     fn text_start() -> *mut usize;
     fn text_end() -> *mut usize;
 
-    fn bss_start() -> *mut usize;
-    fn bss_end() -> *mut usize;
-
     fn rodata_start() -> *mut usize;
     fn rodata_end() -> *mut usize;
 
@@ -241,11 +238,14 @@ pub trait HALSections {
     fn stacks_start() -> *mut usize;
     fn stacks_end() -> *mut usize;
 
-    // TODO deprecate? wait for clarity as for context switches under
-    // opensbi
     fn intstacks_start() -> *mut usize;
     fn intstacks_end() -> *mut usize;
 
+    fn bss_start() -> *mut usize;
+    fn bss_end() -> *mut usize;
+
+    // TODO deprecate? wait for clarity as for context switches under
+    // opensbi
     fn memory_start() -> *mut usize;
     fn memory_end() -> *mut usize;
 }
@@ -253,7 +253,7 @@ pub trait HALSections {
 
 // -------------------------------------------------------------------
 
-/// Trait the collect context switching info
+/// Trait the collect context switching stuff
 pub trait HALSwitch {
     /// This type should contain the initial info that needs to be
     /// presereved through a context switch. This should not include
@@ -279,6 +279,24 @@ pub trait HALSwitch {
 
     /// Restore the most recently saved structure.
     fn restore_gp_info() -> Self::GPInfo;
+
+    // TODO
+    //
+    // I think it makes sense for the unsafe / extern C boundary into
+    // the asm to be in the hal, so the main kernel just sees a safe
+    // never returning call, but I don't think the signature can be
+    // any more general than pc, pgtbl, sp. Porters can bring up
+    // issues if there are any later. Also you can't enforce the
+    // implementation of extern C functions in a trait, so what's the
+    // point.
+    //
+    // In spirit, here we need to make sure *somewhere* there is a
+    //
+    // extern "C" {pub fn process_resume_asm(pc: usize, pgtbl: usize, sp: usize) -> !;}
+    // extern "C" {pub fn process_start_asm(pc: usize, pgtbl: usize, sp: usize) -> !;}
+    // extern "C" {pub fn process_exit_rust(exit_code: isize) -> !;}
+    //
+    // implemented for every backing.
 }
 
 pub trait HALBacking:

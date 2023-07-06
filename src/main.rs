@@ -31,7 +31,7 @@ extern crate alloc;
 pub mod log;
 // ^ has to come first cause of ordered macro scoping
 
-pub mod asm;
+// pub mod asm;
 pub mod device;
 // pub mod hw;
 pub mod lock;
@@ -174,30 +174,29 @@ pub extern "C" fn main() -> ! {
     vm::test_phys_page();
     log!(Debug, "Successful phys page extent allocation and freeing...");
 
-    panic!("Got as far as I wanted");
+    // log!(Debug, "Initializing VIRTIO blk device...");
+    // if let Err(e) = device::virtio::virtio_block_init() {
+    //     println!("{:?}", e);
+    // }
+    // TODO rework virtio with opensbi. Discover how that should even work
 
-    log!(Debug, "Initializing VIRTIO blk device...");
-    if let Err(e) = device::virtio::virtio_block_init() {
-        println!("{:?}", e);
-    }
-
-    // process::init_process_structure();
+    process::init_process_structure();
     // hartlocal::hartlocal_info_interrupt_stack_init();
+    // ^ This is in hal setup now
     log!(Debug, "Successfuly initialized the process system...");
     // plic::local_init();
-    log!(Info, "Finished plic local init hart0...");
+    // ^ This is maybe covered by opensbi? :eyes:
+    // log!(Info, "Finished plic local init hart0...");
     log!(Info, "Completed all hart0 initialization and testing...");
 
     unsafe {
         // release the waiting harts
         GLOBAL_INIT_FLAG.assume_init_mut().update(1);
+        log!(Error, "Do CPU discovery and setup with HAL::wake_one");
     }
 
     // we want to test multiple processes with multiple harts
-    // process::test_multiprocess_syscall();
-    // loop {}
-
-    todo!("Do CPU discovery and setup with HAL::wake_one");
+    process::test_multiprocess_syscall();
 
     panic!("Reached the end of kernel main! Did the root process not start?");
 }
