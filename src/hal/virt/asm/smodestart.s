@@ -7,27 +7,22 @@
         .section .text.entry
         .global _entry
 _entry:
-        ## csrr a1, mhartid
-        mv a1, a0               #opensbi loads hartid into a0, hopefully uboot does the same
+        mv a3, a0
         li a0, 0x3000           #2 page stack + guard page
-        mul a1, a1, a0          #offset by hart id
+        mul a1, a3, a0          #offset by hart id
         .extern _stacks_end
         la a2, _stacks_end      # this is the top byte for hart 0
         sub sp, a2, a1
 
-        ## .extern _intstacks_end
-        ## csrr a1, mhartid
-        ## li a0, 0x4000
-        ## mul a1, a1, a0
-        ## la a2, _intstacks_end
-        ## sub a2, a2, a1
-        ## csrw mscratch, a2 # Write per hart mscratch pad
+        ## We want to do a similar thing for the interupt stacks
 
-        ## ^ commented because we don't have to handle m mode ints anymore
-
-
-        li a0, 0x2000
-        sub a2, a2, a0 # Move sp down by scratch pad page + guard page
+        ## we can't reuse the offset (a1) because the spacing is different
+        li a0, 0x2000           #2 page stack + guard page
+        mul a1, a3, a0          #offset by hart id
+        .extern _intstacks_end
+        la a2, _intstacks_end
+        sub a2, a2, a1
+        ## int stack base in a2 now.
 
         ## put half of the initial contents of the sscratch stack in
         ## now, namely the kernel stack base addr for this hart

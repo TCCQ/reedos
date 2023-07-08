@@ -265,6 +265,20 @@ impl HALVM for HAL {
         )
     }
 
+
+    fn kernel_pgtbl_late_setup(pgtbl: &PageTable) {
+        // This is what used to be vm::pagetable_interrupt_stack_setup
+        unsafe {
+            asm!(
+                "csrrw sp, sscratch, sp",
+                "addi sp, sp, -8",
+                "sd {page_table}, (sp)",
+                "csrrw sp, sscratch, sp",
+                page_table = in(reg) pgtbl.addr as usize
+            );
+        }
+    }
+
     /// This call is only valid after other non-hal stuff has been
     /// initialized (page allocation specifically.)
     fn pgtbl_new_empty() -> Result<PageTable, HALVMError> {
@@ -290,6 +304,7 @@ impl HALVM for HAL {
         nbytes: usize,
         flags: PageMapFlags
     ) -> Result<(), HALVMError> {
+        log!(Debug, "{:X} to {:X}", phys as usize, nbytes + phys as usize);
         match ptable::page_map(
             table_hal_to_ptable(pgtbl),
             virt,
@@ -466,7 +481,7 @@ impl HALDiscover for HAL {
         log!(Error, "WE ARE USING HARDCODED HARDWARE DISCOVERY!!!");
     }
 
-    const NHART: usize = 1;
+    const NHART: usize = 2;
 
     const DRAM_BASE: *mut usize = 0x80000000 as *mut usize;
 }

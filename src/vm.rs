@@ -105,24 +105,22 @@ pub fn global_init() -> Result<PageTable, ()> {
 
 pub fn local_init(pt: &PageTable) {
     HAL::pgtbl_swap(pt);
-    log!(Info, "WE ARE NOT DOING SECONDARY STACK SETUP YET!!!");
-    // pt.write_satp();
-    // pagetable_interrupt_stack_setup(pt);
+    HAL::kernel_pgtbl_late_setup(pt);
 }
 
-// TODO error type?
-fn pagetable_interrupt_stack_setup(pt: &PageTable) {
-    log!(Debug, "Writing kernel page table {:02X?}", pt.addr);
-    unsafe {
-        asm!(
-            "csrrw sp, sscratch, sp",
-            "addi sp, sp, -8",
-            "sd {page_table}, (sp)",
-            "csrrw sp, sscratch, sp",
-            page_table = in(reg) pt.addr as usize
-        );
-    }
-}
+// This was moved inside the HAL
+// fn pagetable_interrupt_stack_setup(pt: &PageTable) {
+//     log!(Debug, "Writing kernel page table {:02X?}", pt.addr);
+//     unsafe {
+//         asm!(
+//             "csrrw sp, sscratch, sp",
+//             "addi sp, sp, -8",
+//             "sd {page_table}, (sp)",
+//             "csrrw sp, sscratch, sp",
+//             page_table = in(reg) pt.addr as usize
+//         );
+//     }
+// }
 
 /// Create the kernel page table with 1:1 mappings to physical memory.
 /// First allocate a new page for the kernel page table.
@@ -146,8 +144,8 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
     let map_pages = || -> Result<(), HALVMError> {
         HAL::pgtbl_insert_range(
             kpage_table,
-            HAL::DRAM_BASE,
-            HAL::DRAM_BASE as *mut usize,
+            HAL::text_start(),
+            HAL::text_start(),
             HAL::text_end().addr() - HAL::text_start().addr(),
             PageMapFlags::Read | PageMapFlags::Execute
         )?;

@@ -118,6 +118,10 @@ pub trait HALVM {
     /// specific mappings will overwrite general mappings
     fn kernel_reserved_areas() -> Vec<(PhysPageExtent, PageMapFlags)>;
 
+    /// Called on the populated kernel pagetable. May be empty for
+    /// some platforms
+    fn kernel_pgtbl_late_setup(pgtbl: &PageTable);
+
     /// Call once before pgtbl use
     fn pgtbl_setup();
 
