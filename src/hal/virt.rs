@@ -17,6 +17,8 @@ use alloc::vec;
 use super::*;
 use crate::vm::{palloc, pfree};
 
+use crate::process::scall_rust_standard;
+
 mod asm;
 
 
@@ -271,8 +273,8 @@ impl HALVM for HAL {
         unsafe {
             asm!(
                 "csrrw sp, sscratch, sp",
-                "addi sp, sp, -8",
-                "sd {page_table}, (sp)",
+                // "addi sp, sp, -8", // space has already been reserved for us, we should write to sp+8
+                "sd {page_table}, 8(sp)",
                 "csrrw sp, sscratch, sp",
                 page_table = in(reg) pgtbl.addr as usize
             );
@@ -586,6 +588,22 @@ impl HALSwitch for HAL {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn scall_rust(a0: usize, a1: usize, a2: usize, a3: usize,
+                             a4: usize, a5: usize, a6: usize, a7: usize)
+                             {
+    let proc_pc: usize;
+    let proc_sp: usize;
+    unsafe {
+        asm!(
+            "mv {pc}, s2",
+            "mv {sp}, s3",
+            pc = out(reg) proc_pc,
+            sp = out(reg) proc_sp
+        );
+    }
+    scall_rust_standard(a0,a1,a2,a3,a4,a5,a6,a7, proc_pc, proc_sp)
+}
 // -------------------------------------------------------------------
 
 impl HALBacking for HAL {

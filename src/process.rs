@@ -34,6 +34,8 @@ static mut PID_COUNTER: LazyCell<Mutex<IdGenerator>> = LazyCell::new(|| Mutex::n
 mod syscall;
 // This should not be exposed to anything, and we don't need to call
 // any of it here
+pub use syscall::scall_rust_standard;
+
 
 // for now we wil be using a single locked round robin queue
 //
@@ -466,7 +468,7 @@ fn process_pause(pc: usize, sp: usize, cause: usize) -> ! {
         }
     }
 
-    // log!(Debug, "Hart {}: Process {} yielded.", read_tp(), proc.id);
+    log!(Debug, "Process {} yielded.", proc.id);
 
 
     // This is careful code to avoid holding the lock when we enter

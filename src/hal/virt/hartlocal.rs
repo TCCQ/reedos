@@ -82,7 +82,7 @@ pub fn hartlocal_info_interrupt_stack_init() {
     unsafe {
         asm!(
             "csrr a0, sscratch",
-            "addi a0, a0, -8",
+            "addi a0, a0, -16", // here we reserve space for both gp and the kernel pagetable.
             "sd zero, (a0)",
             // This used to write gp, but this is invalid anyway, and
             // with just null here, we can do this before we have to

@@ -38,7 +38,7 @@ __strapvec:
         bnez t0, regular_strap
         ## Single out u mode scall
         ##
-        ## I want to handle that seperately, reset state and move to
+        ## I want to handle that separately, reset state and move to
         ## handler
         ld t0, -8(sp)
         csrrw sp, sscratch, sp
@@ -102,10 +102,6 @@ regular_strap:
         ## directing traffic
         ##
 scall_asm:
-        j scall_asm
-        ## TODO small patch to avoid having to fix all of process.rs
-        ## before a test cycle. Don't forget to remove
-
         ## handle a yield specifically
 
         ## make quick space by using the sscratch stack without
@@ -115,8 +111,7 @@ scall_asm:
         sd a0, (sp)
         ## we are on the sscratch stack and can clobber a0 freely. All
         ## others must be preserved
-        ## jal scall_direct
-        ## TODO uncomment, see scall_asm
+        jal scall_direct
 
         ## returns zero in a0 if we want to stay on the program
         ## stack/page table, and non-zero for the kernel stack/ page
@@ -178,9 +173,9 @@ dont_change_stack:
 
         addi sp, sp, -8
         ld ra, (sp)
-        ## call the main handler
-        ## jal scall_rust
-        ## TODO uncomment, see scall_asm
+        ## call the main handler (this should be included in any HAL
+        ## backing). For riscv we supply the non-argument info (pc,sp)
+        ## in (s2,s3)
+        jal scall_rust
 
-        ## TODO do we need to manually increment sepc? unclear
         sret
