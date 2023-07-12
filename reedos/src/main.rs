@@ -205,3 +205,32 @@ pub extern "C" fn main() -> ! {
     panic!("Reached the end of kernel main! Did the root process not start?");
 }
 
+// -------------------------------------------------------------------
+//
+// TODO this doesn't seem to play nice with my lsp, but that's a small
+// price to pay
+
+// trace_macros!(true);
+
+extern crate hook;
+use hook::hook;
+use alloc::vec;
+
+#[hook(test_hook)]
+fn regular_function(i: i32) -> i32 {
+    i+1
+}
+
+#[hook(no_ret_hook)]
+fn function_no_ret(mut a: u64) {
+}
+
+// struct HookTest {}
+
+// TODO doesn't work on impl methods with self refs, cause it just expands to a Self type, but outside the context. Hooks should just be for non-method functions for the moment
+// impl HookTest {
+//     #[hook(self_ref_hook)]
+//     fn on_self(&mut self) -> usize {
+//         5
+//     }
+// }

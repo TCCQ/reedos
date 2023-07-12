@@ -64,7 +64,6 @@ pub fn hook(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // The token stream we are actually releasing to the compiler
     TokenStream::from(quote! {
-        use alloc::vec;
         // log_syntax!(#hook_item);
         #hook_item
         #(#attrs)* #vis #sig {
