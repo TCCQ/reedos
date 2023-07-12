@@ -1,22 +1,9 @@
-[package]
-name = "reedos"
-version = "0.1.0"
-edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-# features starting with hal- are hardware abstraction layer backings,
-# and there should be exactly one of them enabled at a time. In theory
-# this should be enforced already.
-[features]
-default = ["hal-virt"]
-hal-virt = []
-
-[dependencies]
-bitflags = "2.3.2"
-
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
+# We want a workspace so we can have seperated projects
+#
+# we need this because proc-macros have to be in their own crate I guess
+[workspace]
+members = [
+        "reedos",
+        "hook",
+]

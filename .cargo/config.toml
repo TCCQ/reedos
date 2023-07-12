@@ -4,7 +4,9 @@ build-std-features = ["compiler-builtins-mem"]
 
 [build]
 target = "riscv64imac-unknown-none-elf"
-rustflags = ["-C", "link-args=-Tkernel.ld --no-pie", "-C", "relocation-model=static"
+rustflags = [
+# "-C", "link-args=-Tkernel.ld --no-pie",
+"-C", "relocation-model=static", "-Z macro-backtrace"
 ]
 
 # [target.riscv64imac-unknown-none-elf]
