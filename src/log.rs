@@ -15,9 +15,6 @@ pub struct SerialPass {
 
 impl Write for SerialPass {
     fn write_str(&mut self, out: &str) -> Result<(), Error> {
-        // unsafe {
-        //     sbi_nputs(out.as_ptr(), out.len() as u32);
-        // }
         HAL::serial_put_string(out);
         Ok(())
     }
@@ -32,7 +29,6 @@ macro_rules! print
         #[allow(unused_unsafe)]
         let mut dev = unsafe {log::PRIMARY_SERIAL_PASS.lock()};
         let _ = write!(dev, $($args)+);
-        // let _ = write!(uart::Uart::new().lock(), $($args)+);
     });
 }
 
@@ -92,5 +88,3 @@ macro_rules! log
         print!(concat!("[ERROR] ", $fmt, "\r\n"), $($args)+)
     });
 }
-
-pub(crate) use log;
