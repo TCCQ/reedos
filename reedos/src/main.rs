@@ -15,7 +15,7 @@
 #![feature(log_syntax)]
 
 #![allow(dead_code)]
-// #![allow(unused_variables)]
+#![allow(unused_variables)]
 
 
 // This should include the static libsbi library, which should be placed inside /target/<profile>/deps/
@@ -45,6 +45,7 @@ pub mod process;
 pub mod file;
 pub mod hal;
 pub mod id;
+pub mod hook;
 
 pub static BANNER: &str = r#"
 Mellow Swirled,
@@ -210,24 +211,36 @@ pub extern "C" fn main() -> ! {
 // TODO this doesn't seem to play nice with my lsp, but that's a small
 // price to pay
 
-// trace_macros!(true);
-
-extern crate hook;
-use hook::hook;
+extern crate hook as hk;
+use hk::hook;
 use alloc::vec;
 
 #[hook(test_hook)]
-fn regular_function(i: i32) -> i32 {
-    i+1
+fn regular_function(i: i32, u: u32) -> i32 {
+    i + (u as i32)
 }
 
 #[hook(no_ret_hook)]
-fn function_no_ret(mut a: u64) {
+fn function_no_ret(a: u64) {
 }
 
-// struct HookTest {}
+#[hook(ref_hook)]
+fn function_with_reference(a: &u32) -> &u32 {
+    a
+}
+
+#[hook(mut_ref_hook)]
+fn function_with_mut(m: &mut u32) {
+
+}
+
+#[hook(mut_args_hook)]
+fn func_with_mut_args(mut a: u32) {
+    let fn_ptr: alloc::boxed::Box<dyn FnMut(u32)> = alloc::boxed::Box::new(func_with_mut_args);
+}
 
 // TODO doesn't work on impl methods with self refs, cause it just expands to a Self type, but outside the context. Hooks should just be for non-method functions for the moment
+// struct HookTest {}
 // impl HookTest {
 //     #[hook(self_ref_hook)]
 //     fn on_self(&mut self) -> usize {

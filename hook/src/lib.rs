@@ -7,58 +7,101 @@ use quote::quote;
 
 extern crate alloc;
 
+// Use as #[hook(hook_name)]
+// above a function.
+
 #[proc_macro_attribute]
 pub fn hook(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);
     let ItemFn { attrs, vis, sig, block } = input;
     let stmts = &block.stmts;
+    // We should be fairly sure that we are looking at a function
+    // declaration at this point, and we have names for some of the
+    // parts
 
     // Stuff for generating a seperate static container for hook types
     let original_inputs = sig.inputs.clone();
     let original_output = sig.output.clone();
     let hook_name = parse_macro_input!(attr as syn::Ident);
 
-    let mut hook_inputs: punctuated::Punctuated<alloc::boxed::Box<Type>, token::Comma> = punctuated::Punctuated::new();
+    // List of types for declaring the hook signature
+    let mut hook_inputs: punctuated::Punctuated<
+            alloc::boxed::Box<Type>,token::Comma> = punctuated::Punctuated::new();
+    // list of names with `mut`, but no types
+    let mut original_input_names: punctuated::Punctuated<
+            alloc::boxed::Box<Pat>, token::Comma> = punctuated::Punctuated::new();
+    // list of namees with out mutability qualifiers
+    let mut original_names_no_mut: punctuated::Punctuated<
+            alloc::boxed::Box<Pat>, token::Comma> = punctuated::Punctuated::new();
 
+    // populate the above
     for arg in original_inputs.iter() {
-        hook_inputs.push(match arg.clone() {
+        match arg.clone() {
             FnArg::Receiver(self_ref) => {
-                self_ref.ty
+                todo!("Hooks on methods with self");
+                // hook_inputs.push(self_ref.ty);
+                // original_input_names.push(Box::new(Pat::Verbatim(quote!(self))));
             },
             FnArg::Typed(other) => {
-                other.ty
+                hook_inputs.push(other.ty);
+                original_input_names.push(other.pat.clone());
+                original_names_no_mut.push(
+                    match *other.pat {
+                        Pat::Ident(i) => {
+                            Box::new(
+                                Pat::Ident(
+                                    PatIdent {
+                                        attrs: i.attrs,
+                                        by_ref: i.by_ref,
+                                        mutability: None,
+                                        ident: i.ident,
+                                        subpat: i.subpat,
+                                    }
+                                )
+                            )
+                        },
+                        _ => {
+                            panic!("Non-ident pattern in function args?");
+                        }
+                    }
+                )
             },
-        });
+        };
     }
 
+    // If a hook consumes the call and returns early, what type should it return?
     let hook_output = match original_output {
         ReturnType::Default => {
-            quote!(bool)        // TODO this type is meaningless, but is here to keep the signatures similar
+            // This is mostly what we need this for
+            quote!(())
         },
         ReturnType::Type(_, boxed_type) => {
             quote!(#boxed_type)
         }
     };
 
+    // This is the new static we are inserting to hold the installed hook
     let hook_item = syn::ItemStatic {
-        attrs: vec!(), // type: Vec<Attribute>, TODO add a comment or something
+        attrs: vec!(), // type: Vec<Attribute>
         vis: Visibility::Public( token::Pub::default()),
         static_token: token::Static::default(),
-        mutability: StaticMutability::Mut(token::Mut::default()),   // We need this to be mut, but we'll put this in a lock
-        ident: hook_name,
+        mutability: StaticMutability::Mut(token::Mut::default()),
+        // ^ We actually want this to be immutable, because we want it
+        // locked. but for some reason when you mark it without mut,
+        // then we get errors saying that our dyn FnMut type is not
+        // Send TODO fix
+        ident: hook_name.clone(),
         colon_token: token::Colon::default(),
         ty: alloc::boxed::Box::new(
                 Type::Verbatim(quote!{
                     crate::lock::mutex::Mutex<alloc::vec::Vec<alloc::boxed::Box<dyn core::ops::FnMut
-                        (#hook_inputs) -> (#hook_output, bool)
+                        ((#hook_inputs)) -> crate::hook::HookReturn<(#hook_inputs), #hook_output>
                         >>>
-                })
-                ),      // type: Box<Type>, we want something
-        // like Verbatim(TokenStream) to get a Lock around a containter
+                })),
         eq_token: token::Eq::default(),
         expr: alloc::boxed::Box::new(Expr::Verbatim(quote!{
-            crate::lock::mutex::Mutex::new(vec!())    // TODO depends on type
-        })),
+            crate::lock::mutex::Mutex::new(vec!())
+        })),                                          // initial contents, empty
         semi_token: token::Semi::default(),
     };
 
@@ -66,9 +109,37 @@ pub fn hook(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         // log_syntax!(#hook_item);
         #hook_item
+        // ^ This inserts the static
         #(#attrs)* #vis #sig {
-            let _ = 1+1;
-            #(#stmts)*
+            // ^ this is exactly the fn signature we were passed
+            let mut __inputs = (#original_names_no_mut);
+            // ^ collect the original arguments
+            unsafe {
+                let mut container = #hook_name.lock();
+                // iterate over hooks, either replacing arguments or consuming and returning early
+                for hook in container.iter_mut() {
+                    match hook(__inputs) {
+                        crate::hook::HookReturn::Consume(output) => {
+                            return output
+                        },
+                        crate::hook::HookReturn::Compose(new_input) => {
+                            __inputs = new_input
+                        },
+                    }
+                }
+            }
+            // Insert another block here so we can safely shadow the
+            // original arguments without bothering the original
+            // function body
+            {
+                // this shadowing of the original arguments allows us
+                // to invisibly change original non-mutable objects,
+                // although mutability is not a solved problem just
+                // yet
+                let (#original_input_names) = __inputs;
+                #(#stmts)*
+                // ^ the original function body
+            }
         }
     }
 )}
