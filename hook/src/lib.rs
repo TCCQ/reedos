@@ -7,6 +7,8 @@ use quote::quote;
 
 extern crate alloc;
 
+// TODO make this use a RW lock instead
+
 // Use as #[hook(hook_name)]
 // above a function.
 
