@@ -6,6 +6,8 @@
 ///
 /// Currently this is roughly a stack allocator.
 
+// Disconnected from id migration
+
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 
@@ -25,7 +27,7 @@ pub fn init_pid_subsystem() {
 pub fn generate_new_pid() -> usize {
     unsafe {
         let recieved = PID_COUNTER.fetch_add(1, Ordering::Acquire);
-        if recieved == usize::MAX - 2 {
+       if recieved == usize::MAX - 2 {
             panic!("Ran out of PIDs! Make a better PID system.");
         } else {
             recieved

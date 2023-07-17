@@ -1,15 +1,34 @@
 //! Logging and printing macros
 
+use core::fmt::{Write, Error};
+
+use crate::hal::*;
+use crate::lock::mutex::Mutex;
+// use crate::sbi_nputs;
+
+/// Wrapper for the HAL provided serial console. Ensure atomicity and nice rust bindings
+pub static PRIMARY_SERIAL_PASS: Mutex<SerialPass> = Mutex::new(SerialPass {_ignore: ()});
+
+pub struct SerialPass {
+    _ignore: (),
+}
+
+impl Write for SerialPass {
+    fn write_str(&mut self, out: &str) -> Result<(), Error> {
+        HAL::serial_put_string(out);
+        Ok(())
+    }
+}
+
 macro_rules! print
 {
     ($($args:tt)+) => ({
         use core::fmt::Write;
-        use crate::uart;
+        use crate::log;
         // LSP is confused by macros, this unsafe is required
         #[allow(unused_unsafe)]
-        let mut dev = unsafe {uart::WRITER.lock()};
+        let mut dev = unsafe {log::PRIMARY_SERIAL_PASS.lock()};
         let _ = write!(dev, $($args)+);
-        // let _ = write!(uart::Uart::new().lock(), $($args)+);
     });
 }
 
@@ -69,5 +88,3 @@ macro_rules! log
         print!(concat!("[ERROR] ", $fmt, "\r\n"), $($args)+)
     });
 }
-
-pub(crate) use log;

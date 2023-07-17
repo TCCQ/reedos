@@ -1,5 +1,5 @@
 //! Physical page allocator
-use crate::hw::param::*;
+use crate::PAGE_SIZE;
 use crate::lock::mutex::Mutex;
 use crate::vm::VmError;
 

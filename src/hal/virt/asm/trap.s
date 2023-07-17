@@ -4,22 +4,22 @@
 ### / disappears after the trap exits
 
 
-        .section .text
-        ## This is the machine mode trap vector(not really). It exists
-        ## to get us into the rust handler
-        .option norvc
-        .align 4
-        .global __mtrapvec
-__mtrapvec:
-        csrrw sp, mscratch, sp
-        save_gp_regs
+##         .section .text
+##         ## This is the machine mode trap vector(not really). It exists
+##         ## to get us into the rust handler
+##         .option norvc
+##         .align 4
+##         .global __mtrapvec
+## __mtrapvec:
+##         csrrw sp, mscratch, sp
+##         save_gp_regs
 
-        .extern m_handler
-        call m_handler
+##         .extern m_handler
+##         call m_handler
 
-        load_gp_regs
-        csrrw sp, mscratch, sp
-        mret
+##         load_gp_regs
+##         csrrw sp, mscratch, sp
+##         mret
 
 ### ------------------------------------------------------------------
 ###
@@ -38,7 +38,7 @@ __strapvec:
         bnez t0, regular_strap
         ## Single out u mode scall
         ##
-        ## I want to handle that seperately, reset state and move to
+        ## I want to handle that separately, reset state and move to
         ## handler
         ld t0, -8(sp)
         csrrw sp, sscratch, sp
@@ -173,8 +173,9 @@ dont_change_stack:
 
         addi sp, sp, -8
         ld ra, (sp)
-        ## call the main handler
+        ## call the main handler (this should be included in any HAL
+        ## backing). For riscv we supply the non-argument info (pc,sp)
+        ## in (s2,s3)
         jal scall_rust
 
-        ## TODO do we need to manually increment sepc? unclear
         sret

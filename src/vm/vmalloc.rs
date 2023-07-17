@@ -2,7 +2,7 @@
 use core::mem::size_of;
 
 use super::{palloc, palloc::Page, pfree, VmError};
-use crate::hw::param::PAGE_SIZE;
+use crate::hal::PAGE_SIZE;
 
 pub const MAX_CHUNK_SIZE: usize = 4080; // PAGE_SIZE - ZONE_HEADER_SIZE - HEADER_SIZE = 4096 - 8 - 8 = 4080.
 const HEADER_SIZE: usize = size_of::<Header>();

@@ -13,7 +13,8 @@ const LCR: usize = 3; // Line Control Register (baud rate stuff)
 const FCR: usize = 2; // FIFO Control Register (see uart layout in reference)
                       //const LSR: usize = 2; // Line Status Register (ready to rx, ready to tx signals)
 
-pub static mut WRITER: Mutex<Uart> = Uart::new(UART_BASE);
+// pub static mut WRITER: Mutex<Uart> = Uart::new(UART_BASE);
+// ^ replaced by new log w/ HAL
 
 pub struct Uart {
     base_address: usize,
@@ -30,7 +31,8 @@ impl Write for Uart {
 
 pub fn init() {
     unsafe {
-        WRITER.lock().init();
+        // WRITER.lock().init();
+        todo!("Eliminate remaining WRITER use.");
     }
 }
 
