@@ -4,6 +4,7 @@
 # we need this because proc-macros have to be in their own crate I guess
 [workspace]
 members = [
-        "reedos",
+        "kernel",
         "hook",
 ]
+default-members = [ "kernel" ]
