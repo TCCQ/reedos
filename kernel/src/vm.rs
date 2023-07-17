@@ -7,10 +7,8 @@ pub mod vmalloc;
 use alloc::boxed::Box;
 use core::alloc::{GlobalAlloc, Layout};
 use core::cell::OnceCell;
-use core::arch::asm;
 
 use crate::lock::mutex::Mutex;
-// use crate::hw::param::*;
 use crate::hal::*;
 use global::Galloc;
 use palloc::*;
@@ -107,20 +105,6 @@ pub fn local_init(pt: &PageTable) {
     HAL::pgtbl_swap(pt);
     HAL::kernel_pgtbl_late_setup(pt);
 }
-
-// This was moved inside the HAL
-// fn pagetable_interrupt_stack_setup(pt: &PageTable) {
-//     log!(Debug, "Writing kernel page table {:02X?}", pt.addr);
-//     unsafe {
-//         asm!(
-//             "csrrw sp, sscratch, sp",
-//             "addi sp, sp, -8",
-//             "sd {page_table}, (sp)",
-//             "csrrw sp, sscratch, sp",
-//             page_table = in(reg) pt.addr as usize
-//         );
-//     }
-// }
 
 /// Create the kernel page table with 1:1 mappings to physical memory.
 /// First allocate a new page for the kernel page table.
@@ -305,17 +289,6 @@ pub unsafe fn test_galloc() {
 }
 
 // -------------------------------------------------------------------
-
-
-// /// See `vm::vmalloc::Kalloc::alloc`.
-// pub fn kalloc(size: usize) -> Result<*mut usize, vmalloc::KallocError> {
-//     unsafe { VMALLOC.get_mut().unwrap().alloc(size) }
-// }
-
-// /// See `vm::vmalloc::Kalloc::free`.
-// pub fn kfree<T>(ptr: *mut T) {
-//     unsafe { VMALLOC.get_mut().unwrap().free(ptr) }
-// }
 
 // exposed, but request_phys_page is preferred
 pub fn palloc() -> Result<Page, VmError> {

@@ -8,7 +8,10 @@
 
 // TODO
 //
-// add failstate logging, for use with panics.
+// add failstate logging, for use with panics. (i.e. write the most
+// recent panic message to a fixed point in memory so we can read it
+// with a debugger if that issue is so bad that our printing doesn't
+// work) Not a priority
 
 use core::arch::asm;
 use core::ptr::addr_of_mut;
@@ -259,9 +262,12 @@ impl HALVM for HAL {
         const VIRTIO_SIZE: usize = 0x4000 / PAGE_SIZE;
 
         // TODO one of these mappings is causing issues? I think it
-        // might be overruling some opensbi firmware? totally unclear
+        // might be overruling some opensbi firmware? totally
+        // unclear. leave them out until it's clear we need them. I
+        // think only PLIC is required, for virtio, as the others are
+        // covered by opensbi serial+timers
         vec!(
-            // (PhysPageExtent::new(UART_BASE, PAGE_SIZE), PageMapFlags::Read | PageMapFlags::Write),
+        //     (PhysPageExtent::new(UART_BASE, PAGE_SIZE), PageMapFlags::Read | PageMapFlags::Write),
         //     (PhysPageExtent::new(PLIC_BASE, PLIC_SIZE), PageMapFlags::Read | PageMapFlags::Write),
         //     (PhysPageExtent::new(VIRTIO_BASE, VIRTIO_SIZE), PageMapFlags::Read | PageMapFlags::Write),
         )
@@ -269,11 +275,10 @@ impl HALVM for HAL {
 
 
     fn kernel_pgtbl_late_setup(pgtbl: &PageTable) {
-        // This is what used to be vm::pagetable_interrupt_stack_setup
         unsafe {
             asm!(
                 "csrrw sp, sscratch, sp",
-                // "addi sp, sp, -8", // space has already been reserved for us, we should write to sp+8
+                // space has already been reserved for us, we should write to sp+8
                 "sd {page_table}, 8(sp)",
                 "csrrw sp, sscratch, sp",
                 page_table = in(reg) pgtbl.addr as usize
@@ -286,7 +291,7 @@ impl HALVM for HAL {
     fn pgtbl_new_empty() -> Result<PageTable, HALVMError> {
         match palloc() {
             Err(_) => {
-                todo!();
+                Err(HALVMError::FailedAllocation)
             },
             Ok(page) => {
                 // palloc should zero for us
@@ -296,7 +301,7 @@ impl HALVM for HAL {
     }
 
     fn pgtbl_deep_copy(_src: PageTable,_dest: PageTable) -> Result<(), HALVMError> {
-        todo!()
+        todo!("Walk page table and copy as necessary.")
     }
 
     fn pgtbl_insert_range(
@@ -306,7 +311,7 @@ impl HALVM for HAL {
         nbytes: usize,
         flags: PageMapFlags
     ) -> Result<(), HALVMError> {
-        log!(Debug, "{:X} to {:X}", phys as usize, nbytes + phys as usize);
+        // log!(Debug, "{:X} to {:X}", phys as usize, nbytes + phys as usize);
         match ptable::page_map(
             table_hal_to_ptable(pgtbl),
             virt,
@@ -314,8 +319,8 @@ impl HALVM for HAL {
             nbytes,
             flags_hal_to_ptable(flags)?
         ) {
-            Ok(()) => {return Ok(())},
-            Err(_) => todo!(),
+            Ok(()) => Ok(()),
+            Err(_) => Err(HALVMError::FailedAllocation),
         }
     }
 
@@ -324,6 +329,15 @@ impl HALVM for HAL {
         // there is a very slight memory buildup. It's not a leak
         // because they will be cleaned up on free anyway, but we
         // could free them here
+        //
+        // this leads to an unintuitive feature that removing a
+        // mapping can fail due to an out of memory error. This should
+        // never happen if all remove_range calls are on intervals
+        // that are subsets of previous insert_range calls. Allocation
+        // is only required when removing (invalidating) a range that
+        // was previously invalid at a higher level, and this function
+        // will allocate intermadiate level pages that are filled with
+        // invalid entries
         match ptable::page_map(
             table_hal_to_ptable(pgtbl),
             virt,
@@ -331,13 +345,13 @@ impl HALVM for HAL {
             nbytes,
             flags_hal_to_ptable(PageMapFlags::empty())?
         ) {
-            Ok(()) => {return Ok(())},
-            Err(_) => todo!(),
+            Ok(()) => Ok(()),
+            Err(_) => Err(HALVMError::FailedAllocation),
         }
     }
 
     fn pgtbl_free(_pgtbl: PageTable) {
-        todo!()
+        todo!("Reuse deep copy code to collect all the pages that have been allocated in the past as intermediate levels of this pagetable.")
     }
 
     fn pgtbl_swap(pgtbl: &PageTable) {
@@ -413,6 +427,9 @@ fn s_extern() {
             // I intentionally don't hold the lock here to
             // allow printing. Normally we shouldn't print
             // here
+
+
+            panic!("Unexpected UART input interrupt. Are you not using opensbi?");
             /*
             let input = unsafe {
                 match uart::WRITER.lock().get() {
@@ -428,24 +445,28 @@ fn s_extern() {
                  char::from_u32(input as u32).expect(
                      "Illformed UART input character!"
                  ));
-            */
             log!(Debug, "Ignored uart input. Consider buffering inside HAL");
             unsafe {
                 plic::PLIC.get().unwrap().complete(irq)
             };
-
+             */
         },
         VIRTIO_IRQ => {
             todo!("virtio interrupts");
-            // virtio::virtio_blk_intr();
-            unsafe {
-                plic::PLIC.get().unwrap().complete(irq)
-            };
+        //     virtio::virtio_blk_intr();
+        //     unsafe {
+        //         plic::PLIC.get().unwrap().complete(irq)
+        //     };
         },
         _ => {
             panic!("Uncaught PLIC exception.")
         }
     }
+}
+
+extern "C" {
+    pub fn __mtrapvec();
+    pub fn __strapvec();
 }
 
 /// Ideally general handler init for riscv
@@ -472,7 +493,7 @@ impl HALCPU for HAL {
         // CPU on coldboot, see docs in hal.rs
     }
 
-    fn wake_one<F: Fn() -> !>(start: F) -> Result<(), HALCPUError> {
+    fn wake_one<F: Fn() -> !>(_start: F) -> Result<(), HALCPUError> {
         todo!("If you haven't done CPU number discovery, you should do that first.")
     }
 }

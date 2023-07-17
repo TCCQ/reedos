@@ -11,8 +11,6 @@ pub mod virt;
 
 pub struct HAL {}
 
-// TODO add a HAL trait for interupts
-
 pub trait HALSerial {
     // start serial stuff. These should be used by most of the kernel
     // unless an extension / module takes control of the primary
@@ -86,8 +84,6 @@ pub enum HALVMError {
 }
 
 bitflags! {
-/// TODO how do I make this general?
-///
 /// Things that you can request of a page mapping. Not all may be
 /// valid for all hardware. See associated error.
     #[derive(PartialEq, Eq)]
@@ -134,8 +130,14 @@ pub trait HALVM {
 
     /// Insert the given page into the given table at the given
     /// location. Flags should be specified here, although it's
-    /// totally not clear how to make that general. TODO
-    fn pgtbl_insert_range(pgtbl: PageTable, virt: VirtAddress, phys: PhysAddress, nbytes: usize, flags: PageMapFlags) -> Result<(), HALVMError>;
+    /// totally not clear how to make that general.
+    fn pgtbl_insert_range(
+        pgtbl: PageTable,
+        virt: VirtAddress,
+        phys: PhysAddress,
+        nbytes: usize,
+        flags: PageMapFlags
+    ) -> Result<(), HALVMError>;
 
     /// Remove the mapping at the address in the given page table
     fn pgtbl_remove_range(pgtbl: PageTable, virt: VirtAddress, nbytes: usize) -> Result<(), HALVMError>;
@@ -146,7 +148,7 @@ pub trait HALVM {
     /// appropriate permissions in destination page table.
     fn pgtbl_swap(pgtbl: &PageTable);
 
-    // TODO make this a drop trait
+    // TODO make this a drop trait. Will that ruin inheritence?
     fn pgtbl_free(pgtbl: PageTable);
 }
 
@@ -160,7 +162,7 @@ pub trait HALVM {
 /// the hardware in question. The handlers that get installed can call
 /// out to the main kernel, but the implementer of the HAL is
 /// responsible for ensuring that the calls and their side effects are
-/// safe for the current execution environement (Priviledge, Current
+/// safe for the current execution environement (Privilege, Current
 /// page table, type of handler). A natural ideal point for
 /// generalization would be the syscalls, but even those calling
 /// conventions are different. The syscall main handler will continue
@@ -276,23 +278,19 @@ pub trait HALSwitch {
     /// rest.
     fn switch_setup();
 
-    //GPInfo management is CPU local
-
-    /// Set the structure for the next restore.
+    /// Set the structure for the next restore on this CPU.
     fn save_gp_info(gpi: Self::GPInfo);
 
-    /// Restore the most recently saved structure.
+    /// Restore the most recently saved structure on this CPU.
     fn restore_gp_info() -> Self::GPInfo;
 
-    // TODO
-    //
     // I think it makes sense for the unsafe / extern C boundary into
     // the asm to be in the hal, so the main kernel just sees a safe
     // never returning call, but I don't think the signature can be
     // any more general than pc, pgtbl, sp. Porters can bring up
     // issues if there are any later. Also you can't enforce the
     // implementation of extern C functions in a trait, so what's the
-    // point.
+    // point?
     //
     // In spirit, here we need to make sure *somewhere* there is a
     //

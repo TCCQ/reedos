@@ -1,9 +1,4 @@
 //! Process handle and utilities.
-// use alloc::boxed::Box;
-
-// extern crate alloc;
-
-// use alloc::boxed::Box;
 use alloc::collections::vec_deque::*;
 use core::assert;
 use core::mem::{size_of, MaybeUninit};
@@ -12,12 +7,7 @@ use core::cell::OnceCell;
 use core::cell::LazyCell;
 
 use crate::hal::*;
-// use crate::hw::HartContext;
-// use crate::trap::TrapFrame;
-// use crate::vm::ptable::*;
 use crate::vm::VmError;
-// use crate::hw::riscv::read_tp;
-// use crate::hw::param::*;
 use crate::vm::{request_phys_page, PhysPageExtent};
 use crate::file::elf64::*;
 use crate::lock::mutex::Mutex;
@@ -32,14 +22,13 @@ static mut PID_COUNTER: LazyCell<Mutex<IdGenerator>> = LazyCell::new(|| Mutex::n
 
 #[allow(unused_variables)]
 mod syscall;
-// This should not be exposed to anything, and we don't need to call
-// any of it here
+// we just want the one thing exposed for the HAL to use
 pub use syscall::scall_rust_standard;
 
 
 // for now we wil be using a single locked round robin queue
 //
-// TODO Lazy? unclear
+// TODO LazyCell? unclear
 static mut QUEUE: OnceCell<Mutex<ProcessQueue>> = OnceCell::new();
 
 
@@ -86,13 +75,12 @@ pub struct Process {
     pgtbl: PageTable,                     // uninizalied with null
     phys_pages: MaybeUninit<VecDeque<PhysPageExtent>>, // vec to avoid Ord requirement
     // ^ hopefully it's clear how this is uninit
-    // TODO consider this as a OnceCell
+    // TODO consider this as a OnceCell or LazyCell
 
     // sleep_time: usize           // uninit with 0, only valid with sleep state
 
     // currently unused, but needed in the future
     // address_space: BTreeSet<Box<dyn Resource>>, // todo: Balanced BST of Resources
-
 }
 
 // TODO merge this with ELFError?
@@ -116,25 +104,6 @@ fn kernel_process_flags(r: bool, w: bool, e: bool) -> PageMapFlags {
 }
 
 impl Process {
-    // pub fn _new_no_alloc() -> Self {
-    //     // this should return a process struct that is completely
-    //     // uninitialized. It cannot allocate (a page table), and it
-    //     // cannot fail. Do not use this unless there is no way that
-    //     // the the process can be cleaned up safely. See
-    //     // virt/hartlocal.rs for a possible use case.
-    //     Self {
-    //         saved_pc: 0,
-    //         saved_sp: 0,
-    //         id: 0,
-    //         state: crate::process::ProcessState::Uninitialized,
-    //         pgtbl: crate::hal::PageTable {addr: core::ptr::null_mut()},
-    //         phys_pages: core::mem::MaybeUninit::uninit(),
-    //     }
-    // }
-    //
-    // This is not enabled because it is unsafe. See hartlocal under
-    // virt for what it was going to be used for
-
     /// Construct a new process. Notably does not allocate anything or
     /// mean anything until you initialize it.
     pub fn new_uninit() -> Result<Self, ProcError> {
@@ -494,7 +463,6 @@ pub extern "C" fn process_exit_rust(exit_code: isize) -> ! {
     // ^ ensure that the never returning scheduler call doesn't extend
     // the life of the process
 
-
     // This is careful code to avoid holding the lock when we enter
     // the process, as that would lead to an infinite lock
     let next;
@@ -568,19 +536,3 @@ pub fn test_multiprocess_syscall() {
     }
 
 }
-
-// TODO is there a better place for this stuff?
-// /// Moving to `mod process`
-// pub trait Resource {}
-
-// /// Moving to `mod <TBD>`
-// pub struct TaskList {
-//     head: Option<Box<Process>>,
-// }
-
-// /// Moving to `mod <TBD>`
-// pub struct TaskNode {
-//     proc: Option<Box<Process>>,
-//     prev: Option<Box<TaskNode>>,
-//     next: Option<Box<TaskNode>>,
-// }
