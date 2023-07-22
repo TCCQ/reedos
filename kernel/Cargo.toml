@@ -14,6 +14,7 @@ hal-virt = []
 [dependencies]
 bitflags = "2.3.2"
 hook = { path = "../hook" }
+wasmi = { version = "0.30.0", default-features=false } #pointedly not std
 
 # [profile.dev]
 # panic = "abort"

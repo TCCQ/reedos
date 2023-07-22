@@ -23,7 +23,8 @@ impl Write for SerialPass {
 macro_rules! print
 {
     ($($args:tt)+) => ({
-        use core::fmt::Write;
+        use ::core::fmt::Write;
+        // ^ we need this prefix :: to prevent conflits with other imported modules named core
         use crate::log;
         // LSP is confused by macros, this unsafe is required
         #[allow(unused_unsafe)]

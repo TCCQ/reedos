@@ -8,3 +8,4 @@ members = [
         "hook",
 ]
 default-members = [ "kernel" ]
+resolver = "2"
