@@ -14,16 +14,6 @@ use wasmi::errors::*;
 
 // This is the test given by wasmi docs, which doesn't even work. We need to compile our wasm externally first I guess.
 
-enum Compiled {
-    Raw(Box<[u8]>),
-}
-
-impl wasmi::Read for Compiled {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, wasmi::ReadError> {
-        todo!()
-    }
-}
-
 pub fn test_wasm() {
     // First step is to create the Wasm execution engine with some config.
     // In this example we are using the default configuration.
@@ -40,7 +30,7 @@ pub fn test_wasm() {
     // // out `.wat` into `.wasm` before we compile and validate it.
     // let wasm = wat::parse_str(&wat)?;
     let wasm = include_bytes!("wasm_files/hello_test.wasm");
-    let module = match Module::new(&engine, wasm) {
+    let module = match Module::new(&engine, &wasm[..]) {
         Ok(m) => m,
         Err(_) => panic!("wasm module init failed"),
     };
@@ -51,7 +41,7 @@ pub fn test_wasm() {
     type HostState = u32;
     let mut store = Store::new(&engine, 42);
     let host_hello = Func::wrap(&mut store, |caller: Caller<'_, HostState>, param: i32| {
-        println!("Got {param} from WebAssembly");
+        println!("Got {:?} from WebAssembly", param);
         println!("My host state is: {}", caller.data());
     });
 
@@ -63,14 +53,29 @@ pub fn test_wasm() {
     // type signature of the function with `get_typed_func`.
     //
     // Also before using an instance created this way we need to start it.
-    linker.define("host", "hello", host_hello)?;
-    let instance = linker
-        .instantiate(&mut store, &module)?
-        .start(&mut store)?;
-    let hello = instance.get_typed_func::<(), ()>(&store, "hello")?;
+    match linker.define("host", "hello", host_hello) {
+        Ok(_) => {},
+        Err(_) => panic!("wasm linker define failed"),
+    };
+
+    let mut catch = || {
+        Ok::<Instance, Error>(linker
+            .instantiate(&mut store, &module)?
+            .start(&mut store)?)
+    };
+    let instance = match catch() {
+        Ok(i) => i,
+        Err(_) => panic!("wasm linker inst or start error"),
+    };
+    let hello = match instance.get_typed_func::<(), ()>(&store, "hello") {
+        Ok(f) => f,
+        Err(_) => panic!("wasm failed to get typed function"),
+    };
 
     // And finally we can call the wasm!
-    hello.call(&mut store, ())?;
-
-    Ok(())
+    match hello.call(&mut store, ()) {
+        Ok(_) => {},
+        Err(_) => panic!("failed to call wasm. Should have printed"),
+    };
+    log!(Debug, "Previous line should have been from inside WebAssembly");
 }

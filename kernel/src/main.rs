@@ -129,11 +129,7 @@ pub extern "C" fn main() -> ! {
 
     hook::test_insert();
     log!(Debug, "Hook testing done");
-    match wasm::test_wasm() {
-        Ok(_) => {},
-        Err(_) => panic!("WASM test failed!")
-    }
-
+    wasm::test_wasm();
     panic!("got as far as I wanted?");
 
     // we want to test multiple processes with multiple harts
