@@ -395,11 +395,23 @@ fn read_scause() -> usize {
     }
 }
 
+fn read_stval() -> usize {
+    unsafe {
+        let out: usize;
+        asm!(
+            "csrr {out}, stval",
+            out = out(reg) out
+        );
+        out
+    }
+}
+
 /// These are the cause numbers for the regular s mode handler. I don't
 /// see any reason they need to be public.
 ///
 /// TODO how can we make these generic over 32/64 bit width?
 const S_EXTERN_IRQ: usize = 0x9 | ( 1 << 63);
+const S_STORE_AMO_FAULT: usize = 0xf;
 
 /// Supervisor mode trap handler.
 #[no_mangle]
@@ -410,13 +422,31 @@ pub extern "C" fn s_handler() {
         S_EXTERN_IRQ => {
             s_extern()
         },
+        S_STORE_AMO_FAULT => {
+            // This is a write page fault (or a kind of write permission fault)
+
+            let val = read_stval();
+
+            // We want to catch stack over/underflow specifically;
+            if val >= HAL::stacks_start() as usize &&
+                val < (HAL::stacks_end() as usize + PAGE_SIZE) {
+                    // error with the stack area. Hit a guard page
+
+                    // TODO currently we can't tell if this is an over
+                    // or an underflow, because we don't know which
+                    // stack we were on originally. Our current HAL
+                    // does not allow for known CPU ids. This could be
+                    // changed, but I like the anonymity frankly
+                    panic!("Stack over or underflow. Make sure you don't have a huge stack frame somewhere, or cut some recursion!");
+                }
+        },
         _ => {
             log!(
                 Warning,
                 "Uncaught supervisor mode interupt. scause: 0x{:x}",
                 cause
             );
-            panic!()
+            panic!("s_handler panic")
         }
     }
 }
