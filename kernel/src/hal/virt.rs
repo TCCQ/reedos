@@ -24,6 +24,19 @@ use crate::process::scall_rust_standard;
 
 mod asm;
 
+// -------------------------------------------------------------------
+// Shim for misc bused riscv stuff
+
+#[no_mangle]
+pub fn fmod(_a: f64, _b: f64) -> f64 {
+    todo!("No fmod support for riscv?");
+}
+
+#[no_mangle]
+pub fn fmodf(_a: f32, _b: f32) -> f32 {
+    todo!("No fmod support for riscv?");
+}
+
 
 // -------------------------------------------------------------------
 // Opensbi stuff
