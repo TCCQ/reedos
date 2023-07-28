@@ -157,12 +157,12 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
         // problem.
         let base = HAL::stacks_start();
         for s in 0..HAL::NHART {
-            let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 3)) };
+            let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 5)) };
             HAL::pgtbl_insert_range(
                 kpage_table,
                 stack,
                 stack,
-                PAGE_SIZE * 2,
+                PAGE_SIZE * 4,
                 PageMapFlags::Read | PageMapFlags::Write
             )?;
             log!(
