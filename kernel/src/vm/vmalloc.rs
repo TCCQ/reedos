@@ -228,12 +228,13 @@ impl Zone {
         self.base.write(self.next);
     }
 
+
     // Read the current next field to get the refs count.
     // Discard this zone's next addr.
-    // Write base address with new next zone address and refs count.
+    // Write next with new next zone address and refs count.
     unsafe fn write_next(&mut self, new_next: *mut usize) {
         let refs = self.get_refs();
-        self.base.write(new_next.addr() | refs);
+        self.next = new_next.addr() | refs;
     }
 
     fn increment_refs(&mut self) -> Result<(), KallocError> {
