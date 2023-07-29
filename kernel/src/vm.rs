@@ -156,13 +156,15 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
         // problem.
         let base = HAL::stacks_start();
+        let stack_and_guard_page_num = ((HAL::stacks_end() as usize - HAL::stacks_start() as usize) /
+                          (HAL::NHART * PAGE_SIZE));
         for s in 0..HAL::NHART {
-            let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 5)) };
+            let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * stack_and_guard_page_num)) };
             HAL::pgtbl_insert_range(
                 kpage_table,
                 stack,
                 stack,
-                PAGE_SIZE * 4,
+                PAGE_SIZE * (stack_and_guard_page_num - 1),
                 PageMapFlags::Read | PageMapFlags::Write
             )?;
             log!(

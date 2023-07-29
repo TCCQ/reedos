@@ -58,7 +58,8 @@ SECTIONS
   .stacks : {
     . = ALIGN(0x1000);
     PROVIDE(_stacks_start = .);
-    . = . + (4096 * 5 * 2); /* NHARTS with a guard page each, unstable */
+    . = . + (4096 * 9 * 2); /* NHARTS with a guard page each, unstable */
+    /* This is wild. *EACH* kernel stack gets 8 full pages because wasmi eats stack for breakfast */
     PROVIDE(_stacks_end = .);
   }
   .intstacks : {
