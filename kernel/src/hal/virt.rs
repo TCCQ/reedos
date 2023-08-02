@@ -412,6 +412,7 @@ fn read_stval() -> usize {
 /// TODO how can we make these generic over 32/64 bit width?
 const S_EXTERN_IRQ: usize = 0x9 | ( 1 << 63);
 const S_STORE_AMO_FAULT: usize = 0xf;
+const S_LOAD_PAGE_FAULT: usize = 0xd;
 
 /// Supervisor mode trap handler.
 #[no_mangle]
@@ -438,7 +439,15 @@ pub extern "C" fn s_handler() {
                     // does not allow for known CPU ids. This could be
                     // changed, but I like the anonymity frankly
                     panic!("Stack over or underflow. Make sure you don't have a huge stack frame somewhere, or cut some recursion!");
+                } else {
+                    panic!("Store/AMO fault. Faulting address 0x{:x}", val);
                 }
+        },
+        S_LOAD_PAGE_FAULT => {
+            // This is a read page fault
+
+            let val = read_stval();
+            panic!("Load page fault. Faulting address 0x{:x}", val);
         },
         _ => {
             log!(
