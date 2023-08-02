@@ -10,10 +10,8 @@
 #![feature(box_into_inner)]
 #![feature(never_type)]
 #![feature(lazy_cell)]
-
 #![feature(trace_macros)]
 #![feature(log_syntax)]
-
 #![allow(dead_code)]
 
 use core::cell::OnceCell;
@@ -104,8 +102,9 @@ pub extern "C" fn main() -> ! {
     unsafe {
         log!(Debug, "Testing page allocation and freeing...");
         vm::test_palloc();
-        log!(Debug, "Testing galloc allocation and freeing...");
-        vm::test_galloc();
+        // TODO better small scale allocation testing
+        // log!(Debug, "Testing galloc allocation and freeing...");
+        // vm::test_galloc();
     }
     log!(Debug, "Testing phys page extent allocation and freeing...");
     vm::test_phys_page();

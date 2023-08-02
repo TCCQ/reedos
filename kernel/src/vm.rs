@@ -133,7 +133,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             HAL::text_end().addr() - HAL::text_start().addr(),
             PageMapFlags::Read | PageMapFlags::Execute
         )?;
-        log!(Debug, "Succesfully mapped kernel text into kernel pgtable...");
+        // log!(Debug, "Succesfully mapped kernel text into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
@@ -142,7 +142,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             HAL::rodata_end().addr() - HAL::rodata_start().addr(),
             PageMapFlags::Read
         )?;
-        log!(Debug, "Succesfully mapped kernel rodata into kernel pgtable...");
+        // log!(Debug, "Succesfully mapped kernel rodata into kernel pgtable...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
@@ -151,7 +151,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             HAL::data_end().addr() - HAL::data_start().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
-        log!(Debug, "Succesfully mapped kernel data into kernel pgtable...");
+        // log!(Debug, "Succesfully mapped kernel data into kernel pgtable...");
 
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
         // problem.
@@ -167,11 +167,11 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
                 PAGE_SIZE * (stack_and_guard_page_num - 1),
                 PageMapFlags::Read | PageMapFlags::Write
             )?;
-            log!(
-                Debug,
-                "Succesfully mapped kernel stack {} into kernel pgtable...",
-                s
-            );
+            // log!(
+            //     Debug,
+            //     "Succesfully mapped kernel stack {} into kernel pgtable...",
+            //     s
+            // );
         }
 
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
@@ -196,11 +196,11 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
                 PAGE_SIZE,
                 PageMapFlags::Read | PageMapFlags::Write
             )?;
-            log!(
-                Debug,
-                "Succesfully mapped interrupt stack for hart {} into kernel pgtable...",
-                i
-            );
+            // log!(
+            //     Debug,
+            //     "Succesfully mapped interrupt stack for hart {} into kernel pgtable...",
+            //     i
+            // );
         }
 
         HAL::pgtbl_insert_range(
@@ -210,7 +210,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             HAL::bss_end().addr() - HAL::bss_start().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
-        log!(Debug, "Succesfully mapped kernel bss...");
+        // log!(Debug, "Succesfully mapped kernel bss...");
 
         HAL::pgtbl_insert_range(
             kpage_table,
@@ -219,7 +219,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             HAL::memory_end().addr() - HAL::bss_end().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
-        log!(Debug, "Succesfully mapped kernel heap...");
+        // log!(Debug, "Succesfully mapped kernel heap...");
 
         // finished all generic mappings, now do hardware mappings
         let to_map = HAL::kernel_reserved_areas();
@@ -232,7 +232,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
                 flags
             )?;
         }
-        log!(Debug, "Successfully mapped all hardware specifics...");
+        // log!(Debug, "Successfully mapped all hardware specifics...");
         Ok(())
     };
 

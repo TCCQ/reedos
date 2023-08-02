@@ -101,7 +101,8 @@ pub fn flush_tlb() {
     unsafe {
         asm!("sfence.vma zero, zero");
     }
-}pub fn write_satp(pt: usize) {
+}
+pub fn write_satp(pt: usize) {
     unsafe {
         asm!("csrw satp, {}", in(reg) pt);
     }
