@@ -280,7 +280,7 @@ impl Zone {
     // zone in the pool.
     fn free_self(&mut self, mut prev_zone: Zone) {
         assert!(self.get_refs() == 0);
-        log!(Debug, "dropping zone {:x?}, previous {:x?}", self, prev_zone);
+        // log!(Debug, "dropping zone {:x?}, previous {:x?}", self, prev_zone);
         if let Some(next_zone) = self.next_zone() {
             unsafe {
                 prev_zone.write_next(next_zone.base);
@@ -371,7 +371,7 @@ impl Kalloc {
 
     fn grow_pool(&self, tail: &mut Zone) -> Result<(Zone, Header), VmError> {
         let page = palloc()?;
-        log!(Debug, "grow pool. New page {:?}, tail {:X?}", page.addr, tail);
+        // log!(Debug, "grow pool. New page {:?}, tail {:X?}", page.addr, tail);
         unsafe {
             tail.write_next(page.addr);
         }
@@ -384,7 +384,7 @@ impl Kalloc {
     }
 
     fn shrink_pool(&self, drop_zone: Zone) {
-        log!(Debug, "shrink pool. drop page {:?}", drop_zone.base);
+        // log!(Debug, "shrink pool. drop page {:?}", drop_zone.base);
         if drop_zone.base != self.head {
             let mut curr_ptr = self.head;
 
@@ -473,12 +473,13 @@ impl Kalloc {
                 if next.is_free() && next_ptr < zone.base.map_addr(|addr| addr + 0x1000) {
                     // back to back free, merge
                     head.merge(head_ptr, next, next_ptr);
+                } else {
+                    head.write_to(head_ptr);
                 }
             }
         } else {
             panic!("Negative zone refs count: {}", zone.get_refs())
         }
 
-        head.write_to(head_ptr);
     }
 }

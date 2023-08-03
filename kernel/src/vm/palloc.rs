@@ -275,6 +275,10 @@ impl Pool {
         let mut prev_page: Option<Page> = None;
         let mut curr_page = page;
         while curr_page.addr < stop {
+            // Zero and internally link these pages. This also leaves
+            // a dangling link from the last to-be-freed page to the
+            // next logical page, which may be erroneous. This should
+            // be corrected by the following match block
             curr_page.zero();
             let next_page = Page::from(curr_page.addr.map_addr(|addr| addr + 0x1000));
             match prev_page {
@@ -288,7 +292,6 @@ impl Pool {
             }
             (prev_page, curr_page) = (Some(curr_page), next_page);
         }
-        // zeroed and internally linked
 
         match self.free {
             Some(mut head) => {
