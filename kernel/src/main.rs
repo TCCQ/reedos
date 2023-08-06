@@ -132,7 +132,7 @@ pub extern "C" fn main() -> ! {
     panic!("got as far as I wanted?");
 
     // we want to test multiple processes with multiple harts
-    process::test_multiprocess_syscall();
+    // process::test_multiprocess_syscall();
 
     panic!("Reached the end of kernel main! Did the root process not start?");
 }

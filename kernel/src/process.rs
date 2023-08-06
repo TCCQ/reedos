@@ -477,62 +477,63 @@ pub extern "C" fn process_exit_rust(exit_code: isize) -> ! {
     }
 }
 
+// these are commented to streamline the compilation process TODO add to build script
 
-pub fn _test_process_spin() {
-    let bytes = include_bytes!("programs/spin/spin.elf");
-    let program = ELFProgram::new64(&bytes[0] as *const u8);
-    let mut proc = Process::new_uninit().expect("Failed to create test process");
+// pub fn _test_process_spin() {
+//     let bytes = include_bytes!("programs/spin/spin.elf");
+//     let program = ELFProgram::new64(&bytes[0] as *const u8);
+//     let mut proc = Process::new_uninit().expect("Failed to create test process");
 
-    match proc.initialize64(&program) {
-        Ok(_) => {},
-        Err(e) => {panic!("Couldn't start process: {:?}", e)}
-    }
-    proc.start();
-}
+//     match proc.initialize64(&program) {
+//         Ok(_) => {},
+//         Err(e) => {panic!("Couldn't start process: {:?}", e)}
+//     }
+//     proc.start();
+// }
 
-pub fn _test_process_syscall_basic() {
-    let bytes = include_bytes!("programs/syscall-basic/syscall-basic.elf");
-    let program = ELFProgram::new64(&bytes[0] as *const u8);
-    let mut proc = Process::new_uninit().expect("Failed to create test process");
+// pub fn _test_process_syscall_basic() {
+//     let bytes = include_bytes!("programs/syscall-basic/syscall-basic.elf");
+//     let program = ELFProgram::new64(&bytes[0] as *const u8);
+//     let mut proc = Process::new_uninit().expect("Failed to create test process");
 
-    match proc.initialize64(&program) {
-        Ok(_) => {},
-        Err(e) => {panic!("Couldn't start process: {:?}", e)}
-    }
-    proc.start();
-}
+//     match proc.initialize64(&program) {
+//         Ok(_) => {},
+//         Err(e) => {panic!("Couldn't start process: {:?}", e)}
+//     }
+//     proc.start();
+// }
 
-pub fn test_multiprocess_syscall() {
-    let bytes = include_bytes!("programs/syscall-basic/syscall-basic.elf");
-    let program = ELFProgram::new64(&bytes[0] as *const u8);
-    let mut proc = Process::new_uninit().expect("Failed to create test process");
+// pub fn test_multiprocess_syscall() {
+//     let bytes = include_bytes!("programs/syscall-basic/syscall-basic.elf");
+//     let program = ELFProgram::new64(&bytes[0] as *const u8);
+//     let mut proc = Process::new_uninit().expect("Failed to create test process");
 
-    match proc.initialize64(&program) {
-        Ok(_) => {},
-        Err(e) => {panic!("Couldn't start process: {:?}", e)}
-    }
+//     match proc.initialize64(&program) {
+//         Ok(_) => {},
+//         Err(e) => {panic!("Couldn't start process: {:?}", e)}
+//     }
 
-    for _ in 0..4 {
-        let mut proc = Process::new_uninit().expect("Failed to create test process");
+//     for _ in 0..4 {
+//         let mut proc = Process::new_uninit().expect("Failed to create test process");
 
-        match proc.initialize64(&program) {
-            Ok(_) => {},
-            Err(e) => {panic!("Couldn't start process: {:?}", e)}
-        }
+//         match proc.initialize64(&program) {
+//             Ok(_) => {},
+//             Err(e) => {panic!("Couldn't start process: {:?}", e)}
+//         }
 
-        unsafe {
-            QUEUE.get().unwrap().lock().insert(proc)
-        }
-    }
+//         unsafe {
+//             QUEUE.get().unwrap().lock().insert(proc)
+//         }
+//     }
 
-    let enter;
-    unsafe {
-        enter = QUEUE.get().unwrap().lock().get_ready_process();
-    }
-    match enter.state {
-        ProcessState::Unstarted => enter.start(),
-        ProcessState::Ready => enter.resume(),
-        _ => {panic!()}
-    }
+//     let enter;
+//     unsafe {
+//         enter = QUEUE.get().unwrap().lock().get_ready_process();
+//     }
+//     match enter.state {
+//         ProcessState::Unstarted => enter.start(),
+//         ProcessState::Ready => enter.resume(),
+//         _ => {panic!()}
+//     }
 
-}
+// }
