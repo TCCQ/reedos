@@ -1,12 +1,48 @@
-//! This module should contain all the stuff for wrapping the wasm
-//! execution evironment that makes up our safe extension support.
+//! This module contains information mostly. I see no way to really
+//! "wrap" or otherwise generalize the functionality that wasmi
+//! provides without having to re-invent everything that wasmi does,
+//! or re-export everything that it uses. In that case, it is better
+//! to be transparent about what is being called / used, so users
+//! should just import wasmi themselves.
 
-use alloc::boxed::Box;
+//! Things to know. Stolen mostly from the wasmi docs's example, as comprehensive docs are scarce
+//!
+//! A key insight is that despite providing virtuallization,
+//! currently, there is no async / parallel nature to this setup. So
+//! if a wasm module's start contains a waiting loop, you are
+//! softlocked. The mantra for usage of wasm should be "on demand". At
+//! least until we have some sort of kernel async or something going.
+//!
+//! The parts of running sandboxed wasm are:
+//!
+//! Engine: Defines what happens under the hood. Probably you want the default.
+//! Use wasmi::Engine::default() to acquire one
+//!
+//! Module: A module is the basic block of wasm. With engine in hand you can compile and validate a *bytecode only* wasm module with
+//! wasmi::Module::new(&engine, {something readable. Such as a slice reference})
+//!
+//! Store: Data shared between host and wasm are located in Stores. All Wasm objects operate in a store.
+//! Stores can be acquired with wasmi::Store::new(&engine, initial_val)
+//!
+//! To access host state in a store, wasmi::Func::wrap can be used to expose a host function suitable to be called as an import in the wasm module.
+//! See the example in test_wasm.
+//! TODO why do we need stores? I guess to seperate rust globals from wasm module specific stuff? Host functions via wrap should still be able to effect global scope and call out to other parts of the host rust environment.
+//!
+//! To instantiate a module, we need to link the imports, then fetch exports.
+//! To do that we need a wasmi::linker obtained with a <Linker<matching_store_internal_type>>::new(&engine)
+//! Then we can linker.define("module_name", "import_name", wrapped (likely function) value)
+//!
+//! An instance is a sandboxed copy of a abstract module that is verified and has everything it needs to be run.
+//! Obtain one with linker.instatiate(&mut store, &module)
+//! Start it with (prev_line).start(&mut store)
+//!
+//! In the reverse direction, the host can call into the module by obtaining a handle with
+//! instance.get_tpyed_func::<[OMITED TYPE NONSENSE]>(&store, "function_name")
+//! and fire it off with
+//! function_handle.cal(&mut store, func_arg1)
 
 extern crate wasmi;
 use wasmi::*;
-
-use wasmi::errors::*;
 
 // -------------------------------------------------------------------
 //
