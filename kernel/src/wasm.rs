@@ -5,6 +5,10 @@
 //! to be transparent about what is being called / used, so users
 //! should just import wasmi themselves.
 
+// attempt to provide niceties to cover repeated use cases
+
+// TODO do we need to provide Dynamic memory to the internals of wasm? From a wasm perspective, no, since it is against the point. But from a kernel extension perspective, probably. Where should owned PhysPageExtents be stored? In the instance Store?
+
 //! Things to know. Stolen mostly from the wasmi docs's example, as comprehensive docs are scarce
 //!
 //! A key insight is that despite providing virtuallization,
