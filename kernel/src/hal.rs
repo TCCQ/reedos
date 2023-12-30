@@ -259,7 +259,7 @@ pub trait HALSections {
 
 // -------------------------------------------------------------------
 
-/// Trait the collect context switching stuff
+/// Trait to collect context switching stuff
 pub trait HALSwitch {
     /// This type should contain the initial info that needs to be
     /// presereved through a context switch. This should not include
@@ -301,11 +301,70 @@ pub trait HALSwitch {
     // implemented for every backing.
 }
 
+// -------------------------------------------------------------------
+// TODO some of this is not as general / clean as I might want, but I
+// think it is general enough to cover most cases. I think it's just
+// gross since it doesn't really fit with the other traits.
+//
+// This hard-assumes that there will only ever be a single io device,
+// and so none of the interfaces take a device or anything like that.
+
+/// Represents one block of data on disk. Data must point to 512 bytes
+/// of owned memory.
+#[repr(C)]
+#[derive(Debug)]
+pub struct Block {
+    data: *mut u8,
+    len: u32, // Multiple of 512 bytes.
+    offset: u64,
+}
+
+/// This creation is device agnostic, since it is a handle for the
+/// data once it is off the device and in memory (TODO is that
+/// right?). It's crude, but it will have to do for now.
+impl Block {
+    // TODO: Hardcoded 4k block size. Prevent reading past fs block bounds.
+    pub fn new(data: *mut u8, len: u32, offset: u64) -> Result<Self, ()> {
+        if len % 512 == 0 && len <= 4096 {
+            Ok(Self { data, len, offset })
+        } else {
+            Err(())
+        }
+    }
+}
+
+/// Backings are expected to implement this for Block in accordance
+/// with the device in question.
+pub trait HALBlockRW {
+    fn write(&mut self);
+    fn read(&mut self);
+    // TODO should these have more descriptive names? I think since
+    // they are methods it should be fine?
+}
+
+/// Trait for block IO access.
+pub trait HALIO {
+    /// Must be called before any other io operations.
+    fn io_setup();
+
+    /// Sequence io operations.
+    // TODO more specific. is this a full_seq barrier or weaker?
+    fn io_barrier();
+}
+
+// /// Trait for network access
+// pub trait HALNet {
+//     // TODO what do we need here?
+// }
+
+// -------------------------------------------------------------------
+
 pub trait HALBacking:
 HALSerial + HALTimer +
     HALVM + HALIntExc +
     HALCPU + HALDiscover +
-    HALSections + HALSwitch
+    HALSections + HALSwitch +
+    HALIO // + HALNet
 {
     /// Call on all CPUs on start, a single one will exit, and all others will hold, until a later wakeup call
 

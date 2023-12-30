@@ -1,12 +1,12 @@
 use crate::alloc::{boxed::Box, vec::Vec, vec, string::String};
-use crate::device::virtio::*;
+use crate::hal::{Block, HALBlockRW};
 //use crate::vm::request_phys_page;
 use crate::fs::{EXT2_HINT, FsError, Hint};
 use core::mem::size_of;
 use core::cmp;
 
 const EXT2_MAGIC: u16 = 0xef53;
-const EXT2_START_SUPERBLOCK: u64 = 1024; 
+const EXT2_START_SUPERBLOCK: u64 = 1024;
 const EXT2_END_SUPERBLOCK: u64 = 2048;
 
 /// EXT2 Superblock. Graciously borrowed from @dylanmc.
@@ -125,12 +125,12 @@ impl Superblock {
         let _ = Block::new(buf.as_mut_ptr(), len as u32, EXT2_START_SUPERBLOCK).unwrap().read();
         let raw = buf.as_mut_ptr() as *mut Self;
         let sb = unsafe { *raw };
-        
-        if sb.magic != EXT2_MAGIC { 
+
+        if sb.magic != EXT2_MAGIC {
             Err(FsError::BadMagic)
-        } else if (1024 << sb.log_block_size) % 1024 != 0 { 
+        } else if (1024 << sb.log_block_size) % 1024 != 0 {
             Err(FsError::BadBlockSize)
-        } else if sb.blocks_count / sb.blocks_per_group < 1 { 
+        } else if sb.blocks_count / sb.blocks_per_group < 1 {
             Err(FsError::NoBlocksPerGroup)
         } else {
             Ok(Box::new(sb))

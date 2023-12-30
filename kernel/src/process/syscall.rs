@@ -1,5 +1,14 @@
-/// This module isolates all the syscall stuff written in rust. See
-/// syscall.s for the asm half of this
+/// This module isolates all the syscall stuff written in rust.
+
+// TODO make a clearer deliminating line between the hardware and the
+// kernel (supposedly) hardware-agnostic syscall list. I am not
+// motivated to fix this, since any program syscalling has to be
+// compiled for a given ISA, so the syscall number mapping can happen
+// compiler side. Currently we are doing RISCV linux numbers, and I am
+// tempted to leave it at that. If some enterprising person wants to
+// fix this, they can. Or we can shim with compiletime conditional
+// includes on which hal backing feature is enabled. That's good
+// enough for me! -Thomas
 
 use super::*;
 

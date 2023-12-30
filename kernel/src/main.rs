@@ -13,6 +13,7 @@
 #![feature(trace_macros)]
 #![feature(log_syntax)]
 #![allow(dead_code)]
+#![allow(non_upper_case_globals)]
 
 use core::cell::OnceCell;
 use core::mem::MaybeUninit;
@@ -25,7 +26,6 @@ pub mod log;
 #[macro_use]
 pub mod hook;
 
-pub mod device;
 pub mod lock;
 pub mod vm;
 pub mod process;
@@ -33,6 +33,7 @@ pub mod file;
 pub mod hal;
 pub mod id;
 pub mod wasm;
+pub mod fs;
 
 pub static BANNER: &str = r#"
 Mellow Swirled,
@@ -134,7 +135,7 @@ pub extern "C" fn main() -> ! {
     // we want to test multiple processes with multiple harts
     // process::test_multiprocess_syscall();
 
-    panic!("Reached the end of kernel main! Did the root process not start?");
+    // panic!("Reached the end of kernel main! Did the root process not start?");
 }
 
 
@@ -153,7 +154,7 @@ pub fn regular_function(i: i32, u: u32) -> i32 {
 }
 
 #[hook(no_ret_hook)]
-fn function_no_ret(a: u64) {
+fn function_no_ret(_a: u64) {
 }
 
 #[hook(ref_hook)]
@@ -162,13 +163,13 @@ fn function_with_reference(a: &u32) -> &u32 {
 }
 
 #[hook(mut_ref_hook)]
-fn function_with_mut(m: &mut u32) {
+fn function_with_mut(_m: &mut u32) {
 
 }
 
 #[hook(mut_args_hook)]
-fn func_with_mut_args(mut a: u32) {
-    let fn_ptr: alloc::boxed::Box<dyn FnMut(u32)> = alloc::boxed::Box::new(func_with_mut_args);
+fn func_with_mut_args(mut _a: u32) {
+    let _fn_ptr: alloc::boxed::Box<dyn FnMut(u32)> = alloc::boxed::Box::new(func_with_mut_args);
 }
 
 // TODO doesn't work on impl methods with self refs, cause it just expands to a Self type, but outside the context. Hooks should just be for non-method functions for the moment

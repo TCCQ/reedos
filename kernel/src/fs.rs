@@ -6,7 +6,7 @@ pub mod structs;
 
 use structs::*;
 use crate::alloc::{boxed::Box, vec::Vec, vec, string::{String, ToString}};
-use crate::device::virtio::Block;
+use crate::hal::{Block, HALBlockRW};
 use core::cell::OnceCell;
 use core::mem::size_of;
 
@@ -74,7 +74,7 @@ pub struct FileHandle {
     inode: Box<Inode>,
     cursor: u32,
 }
-        
+
 impl FileHandle {
     /// All filepaths must be absolute.
     /// TODO: Make this less unpleasant to look at.
@@ -115,7 +115,7 @@ impl FileHandle {
 pub fn play_ext2() {
     let fd = FileHandle::open("/bin/spin.elf").unwrap();
     println!("My first fd: {:?}", fd);
-    
+
     // This doesn't work. Block I/O error.
     //let fd1 = FileHandle::open("/bin").unwrap();
     //println!("My second fd: {:?}", fd1);

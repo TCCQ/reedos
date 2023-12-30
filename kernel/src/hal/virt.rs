@@ -18,7 +18,7 @@ use core::ptr::addr_of_mut;
 use alloc::vec;
 
 use super::*;
-use crate::vm::{palloc, pfree};
+use crate::vm::palloc;
 
 use crate::process::scall_rust_standard;
 
@@ -481,34 +481,21 @@ fn s_extern() {
             // here
 
 
+            // TODO figure out how UART input works with opensbi. It's
+            // just whatever the opensbi getChar is right? Is there a
+            // non-blocking version, or an interrupting version? does
+            // it have buffering?
+
             panic!("Unexpected UART input interrupt. Are you not using opensbi?");
-            /*
-            let input = unsafe {
-                match uart::WRITER.lock().get() {
-                    Some(i) => i,
-                    None => {
-                        // spurious irq? just exit early
-                        plic::PLIC.get().unwrap().complete(irq);
-                        return
-                    }
-                }
-            };
-            log!(Info, "Got UART input: {}",
-                 char::from_u32(input as u32).expect(
-                     "Illformed UART input character!"
-                 ));
-            log!(Debug, "Ignored uart input. Consider buffering inside HAL");
+        },
+        VIRTIO_IRQ => {
+            // TODO I am assuming blindly that virtio works as normal
+            // under opensbi. We can dump PLIC registers on virt to
+            // figure that out I guess.
+            virtio::virtio_blk_intr();
             unsafe {
                 plic::PLIC.get().unwrap().complete(irq)
             };
-             */
-        },
-        VIRTIO_IRQ => {
-            todo!("virtio interrupts");
-        //     virtio::virtio_blk_intr();
-        //     unsafe {
-        //         plic::PLIC.get().unwrap().complete(irq)
-        //     };
         },
         _ => {
             panic!("Uncaught PLIC exception.")
@@ -678,6 +665,24 @@ pub extern "C" fn scall_rust(a0: usize, a1: usize, a2: usize, a3: usize,
     scall_rust_standard(a0,a1,a2,a3,a4,a5,a6,a7, proc_pc, proc_sp)
 }
 // -------------------------------------------------------------------
+mod virtio;
+
+impl HALIO for HAL {
+    fn io_setup() {
+        match virtio::virtio_block_init() {
+            Ok(()) => {},
+            Err(msg) => {
+                panic!("BlockIO init error: {}", msg);
+            }
+        }
+    }
+
+    fn io_barrier() {
+        virtio::io_barrier();
+    }
+}
+
+// -------------------------------------------------------------------
 
 impl HALBacking for HAL {
     fn global_setup() {
@@ -689,5 +694,6 @@ impl HALBacking for HAL {
         Self::timer_setup();
         Self::discover_setup();
         Self::pgtbl_setup();
+        Self::io_setup();
     }
 }

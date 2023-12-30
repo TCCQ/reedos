@@ -259,29 +259,11 @@ struct VirtBlkReq {
     sector: u64,
 }
 
-/// Represents one block of data on disk. Data must point to 512 bytes of owned memory.
-#[repr(C)]
-#[derive(Debug)]
-pub struct Block {
-    data: *mut u8,
-    len: u32, // Multiple of 512 bytes.
-    offset: u64,
-}
+use crate::hal::{Block, HALBlockRW};
 
-impl Block {
-    // TODO: Hardcoded 4k block size. Prevent reading past fs block bounds.
-    pub fn new(data: *mut u8, len: u32, offset: u64) -> Result<Self, ()> {
-        if len % 512 == 0 && len <= 4096 {
-            Ok(Self { data, len, offset })
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl Block {
+impl HALBlockRW for Block {
     /// Blocking write to device. Spins on `status` until device sets it.
-    pub fn write(&mut self) {
+    fn write(&mut self) {
         let mut status = 0xff_u8;
         match blk_dev_ops(true, &mut status as *mut u8, self) {
             Ok(_) => {
@@ -292,7 +274,7 @@ impl Block {
         };
     }
     /// Blocking read from device. Spins on `status` until device sets it.
-    pub fn read(&mut self) {
+    fn read(&mut self) {
         let mut status = 0xff_u8;
         match blk_dev_ops(false, &mut status as *mut u8, self) {
             Ok(_) => {
