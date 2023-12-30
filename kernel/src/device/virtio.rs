@@ -5,9 +5,10 @@
 
 // Also a nice walkthrough: https://www.redhat.com/en/blog/virtio-devices-and-drivers-overview-headjack-and-phone
 
-use crate::hw::riscv::io_barrier;
+// use crate::hw::riscv::io_barrier;
 use crate::lock::mutex::Mutex;
 use crate::alloc::{vec::Vec, boxed::Box};
+use core::arch::asm;
 use core::cell::OnceCell;
 use core::mem::size_of;
 
@@ -46,6 +47,13 @@ const VIRTIO_QUEUE_DEVICE_LOW: usize = 0x0a0;
 const VIRTIO_QUEUE_DEVICE_HIGH: usize = 0x0a4; // Same as above. Notify of device area of QUEUE_SEL.
 const VIRTIO_CONFIG_GENERATION: usize = 0x0fc; // Config atomocity value. Use to access config space.
 const VIRTIO_CONFIG: usize = 0x100; // 0x100+; Dev specific config starts here.
+
+// Riscv unprivileged spec A.4.2: I/O Ordering
+//
+// moved from riscv.rs
+pub fn io_barrier() {
+    unsafe { asm!("fence w,o"); }
+}
 
 // Device Status; Section 2.1.
 // Indicates completed steps of initialization sequence.

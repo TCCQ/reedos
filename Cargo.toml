@@ -1,14 +1,11 @@
-[package]
-name = "reedos"
-version = "0.1.0"
-edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
+# We want a workspace so we can have seperated projects
+#
+# we need this because proc-macros have to be in their own crate I guess
+[workspace]
+members = [
+        "kernel",
+        "hook",
+]
+default-members = [ "kernel" ]
+resolver = "2"

@@ -1,0 +1,23 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+# features starting with hal- are hardware abstraction layer backings,
+# and there should be exactly one of them enabled at a time. In theory
+# this should be enforced already.
+[features]
+default = ["hal-virt"]
+hal-virt = []
+
+[dependencies]
+bitflags = "2.3.2"
+hook = { path = "../hook" }
+wasmi = { version = "0.30.0", default-features=false } #pointedly not std
+
+# [profile.dev]
+# panic = "abort"
+
+# [profile.release]
+# panic = "abort"

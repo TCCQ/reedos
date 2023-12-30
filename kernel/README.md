@@ -41,6 +41,8 @@ In order to get started with this project you'll need the following:
 - QEMU compiled for riscv
 - `riscv-gnu-toolchain` (don't forget to add to PATH)
 - `rustup target add riscv64gc-unkown-none-elf`
+- `rustup component add rust-src`
+    - `rustup` should be working with the nightly toolchain as an override for this repo (should be automatic)
 
 If you have [Nix](https://nixos.org/download.html) installed, you should be able
 to get all of these by running `nix develop` (can be automatically loaded when
@@ -48,14 +50,7 @@ you enter the directory if you have direnv).
 
 ## Usage
 
-Pretty much everything can be done through cargo now:
-| Cargo | Make | Description |
-|-------|------|-------------|
-| `cargo build` | `make build` | build (output is `target/<ARCH>/<PROFILE>/reedos`) |
-| `cargo run` | `make qemu` | build and run with QEMU |
-| `DEBUG=1 cargo run` | `make qemu-gdb` | build and run with QEMU (wait for gdb) |
-| `cargo doc --open` | `make docs` | build and open documentation in a browser |
-| `cargo clean` | `make clean` | remove `target/` directory |
+The build process for the reedos binary is entirely handled by cargo. Simply `cargo build` should suffice. For running or flashing reedos, see (saneboot)(https://github.com/tccq/saneboot)
 
 You can exit QEMU by pressing <kbd>Ctrl</kbd> + <kbd>a</kbd>, then <kbd>x</kbd>.
 

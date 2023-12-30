@@ -25,36 +25,13 @@
 //    [VIRT_DRAM] =         { 0x80000000,           0x0 },
 //}
 
+// TODO phase this out with HAL
+
 use core::ptr::addr_of_mut;
 
-/// CLINT base address.
-pub const CLINT_BASE: usize = 0x2000000;
-
-/// PLIC base address.
-pub const PLIC_BASE: usize = 0xc000000;
-
-/// PLIC size in memory
-pub const PLIC_SIZE: usize = 0x400000;
-//TODO this should be a function of NHART
-
-/// UART base adderss.
-pub const UART_BASE: usize = 0x10000000;
-
-/// UART interrupt request number.
-pub const UART_IRQ: usize = 10;
-
-/// VIRTIO base address.
-pub const VIRTIO_BASE:usize = 0x10001000;
-
-/// VIRTIO size.
-pub const VIRTIO_SIZE: usize = 0x4000;
-
-/// VIRTIO interrupt request number.
-pub const VIRTIO_IRQ: usize = 1;
 
 /// Start of kernel memory (first .text section goes here).
 pub const DRAM_BASE: *mut usize = 0x80000000 as *mut usize;
-
 
 macro_rules! linker_var {
     (
@@ -93,20 +70,8 @@ linker_var!(_intstacks_end, intstacks_end);
 
 linker_var!(_memory_end, memory_end);
 
-linker_var!(_global_pointer, global_pointer);
-
-pub static PAGE_SIZE: usize = 4096;
+// linker_var!(_global_pointer, global_pointer);
 
 // Run parameters
 pub const NHART: usize = 2;
 
-// Unnecessary.
-pub static BANNER: &str = r#"
-Mellow Swirled,
-                       __
-   ________  ___  ____/ /___  _____
-  / ___/ _ \/ _ \/ __  / __ \/ ___/
- / /  /  __/  __/ /_/ / /_/ (__  )
-/_/   \___/\___/\__,_/\____/____/
-
-"#;

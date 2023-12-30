@@ -239,23 +239,6 @@ pub fn read_tp() -> u64 {
     tp
 }
 
-/// Read and write the hart local global pointer register. In kernel
-/// space we will be using it to point to hart local kernel
-/// information including the current process to be / has been run
-pub fn write_gp(id: u64) {
-    unsafe {
-        asm!("mv gp, {}", in(reg) id);
-    }
-}
-
-pub fn read_gp() -> u64 {
-    let gp: u64;
-    unsafe {
-        asm!("mv {}, gp", out(reg) gp);
-    }
-    gp
-}
-
 // Make sure mret has an addr to go to!
 pub fn call_mret() {
     unsafe {
@@ -311,7 +294,3 @@ pub fn flush_tlb() {
     }
 }
 
-// Riscv unprivileged spec A.4.2: I/O Ordering
-pub fn io_barrier() {
-    unsafe { asm!("fence w,o"); }
-}

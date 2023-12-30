@@ -17,11 +17,32 @@
     // could use it more.. e.g. cases more rustlike.
 
 
-use core::cell::OnceCell; // for PLIC, write once read many times
-use crate::hw::riscv;
-use crate::hw::param::{PLIC_BASE, UART_IRQ, VIRTIO_IRQ};
+use core::{cell::OnceCell, arch::asm}; // for PLIC, write once read many times
+// use crate::hw::riscv;
+// use crate::hw::param::{PLIC_BASE, UART_IRQ, VIRTIO_IRQ};
 
-// ^ constants for PLIC_BASE & device interrupt (IRQ) priority locations.
+/// VIRTIO interrupt request number.
+pub const VIRTIO_IRQ: usize = 1;
+
+/// UART interrupt request number.
+pub const UART_IRQ: usize = 10;
+
+/// PLIC base address.
+pub const PLIC_BASE: usize = 0xc000000;
+
+/// PLIC size in memory
+pub const PLIC_SIZE: usize = 0x400000;
+//TODO this should be a function of NHART
+
+
+// moved from riscv
+pub fn read_tp() -> u64 {
+    let tp: u64;
+    unsafe {
+        asm!("mv {}, tp", out(reg) tp);
+    }
+    tp
+}
 
 pub static mut PLIC: OnceCell<Plic> = OnceCell::new(); // all memory accesses to Plic go through here!
 
@@ -90,7 +111,7 @@ impl Plic {
     /// known explicitly per hart: (RAW_OFFSET + hart * RAW_STEP).
     fn set_s_priority_threshold(&self, threshold: u32) {
         let addr = self.base as *mut u32;
-        let hart = riscv::read_tp() as usize;
+        let hart = read_tp() as usize;
 
         const RAW_OFFSET: usize = 0x201000;
         const RAW_STEP: usize = 0x2000;
@@ -104,7 +125,7 @@ impl Plic {
     /// enables interrupts from devices by non-zero bits in bit-mask
     pub fn hart_local_enable(&self, bit_mask: u32) {
         let addr = self.base as *mut u32;
-        let hart = riscv::read_tp() as usize;
+        let hart = read_tp() as usize;
 
         const RAW_OFFSET: usize = 0x2080;
         const RAW_STEP: usize = 0x100;
@@ -119,7 +140,7 @@ impl Plic {
     /// Claim an interupt that you were alerted to.
     pub fn claim(&self) -> u32 {
         let addr = self.base as *mut u32;
-        let hart = riscv::read_tp() as usize;
+        let hart = read_tp() as usize;
 
         const RAW_OFFSET: usize = 0x201004; // 4-bits after threshold
         const RAW_STEP: usize = 0x2000;
@@ -135,7 +156,7 @@ impl Plic {
     /// Alert the PLIC that we have completed the interupt we claimed
     pub fn complete(&self, irq: u32) {
         let addr = self.base as *mut u32;
-        let hart = riscv::read_tp() as usize;
+        let hart = read_tp() as usize;
 
         const RAW_OFFSET: usize = 0x201004;
         const RAW_STEP: usize = 0x2000;

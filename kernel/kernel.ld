@@ -1,15 +1,19 @@
 OUTPUT_ARCH( "riscv" )
 ENTRY( _entry )
 
-MEMORY
-{
-  RAM  (wxa) : ORIGIN = 0x80000000, LENGTH = 128M
-}
+/*
+ * Including this breaks the .= ? before text. It is just ignored.
+ *
+ * MEMORY
+ * {
+ *   RAM  (wxa) : ORIGIN = 0x80000000, LENGTH = 2048M
+ * }
+ */
 
 SECTIONS
 {
-  . = ORIGIN(RAM);
-
+  PROVIDE(_memory_start = 0x80000000);
+  . = 0xA0000000;
   .text : {
     PROVIDE(_text_start = .);
     *(.text.entry)
@@ -23,7 +27,7 @@ SECTIONS
    * .trampoline : {
    *   . = ALIGN(0x1000);
    *   PROVIDE(_trampoline_start = .);
-   *   *(.trampoline)
+   *   *(.trampoline)8000
    *   *(.trampoline.*)
    *   . = ALIGN(0x1000);
    *   PROVIDE(_trampoline_end = .);
@@ -32,7 +36,7 @@ SECTIONS
 
   /*
    * Only required when using a dynamically linked ELF, which we are not
-   * PROVIDE(_global_pointer = .);
+   * PROVIDE(_global_pointer = .);8000
    */
 
   .rodata : {
@@ -54,7 +58,8 @@ SECTIONS
   .stacks : {
     . = ALIGN(0x1000);
     PROVIDE(_stacks_start = .);
-    . = . + (4096 * 3 * 2); /* NHARTS with a guard page each, unstable */
+    . = . + (4096 * 9 * 2); /* NHARTS with a guard page each, unstable */
+    /* This is wild. *EACH* kernel stack gets 8 full pages because wasmi eats stack for breakfast */
     PROVIDE(_stacks_end = .);
   }
   .intstacks : {
@@ -85,5 +90,8 @@ SECTIONS
   /*
    * PROVIDE(_trampoline_target = ORIGIN(RAM) + LENGTH(RAM) - 0x1000);
    */
-  PROVIDE(_memory_end = ORIGIN(RAM) + LENGTH(RAM));
+  /*
+   * PROVIDE(_memory_end = ORIGIN(RAM) + LENGTH(RAM));
+   */
+  PROVIDE(_memory_end = 0xA0000000 + 256M);
 }

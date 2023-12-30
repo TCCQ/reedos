@@ -1,10 +1,9 @@
 /// This module isolates all the syscall stuff written in rust. See
 /// syscall.s for the asm half of this
 
-use core::arch::asm;
 use super::*;
 
-/// System call rust handler. This is called from scall_asm. See there
+/// System call rust handler. This is called from hal after scall_asm. See there
 /// for calling convention info.
 ///
 /// This function is odd, because it runs EITHER in the kernel stack
@@ -15,23 +14,13 @@ use super::*;
 /// issued.
 ///
 /// This may change in the future.
-#[no_mangle]
-pub extern "C" fn scall_rust(a0: usize, a1: usize, a2: usize, a3: usize,
-                             a4: usize, a5: usize, a6: usize, a7: usize) {
+pub fn scall_rust_standard(a0: usize, a1: usize, a2: usize, a3: usize,
+                           a4: usize, a5: usize, a6: usize, a7: usize,
+                           pc: usize, sp: usize) {
     match a7 {
         SCHED_YIELD => {
             // see the comment on scall_direct for why we have these
-            let proc_pc: usize;
-            let proc_sp: usize;
-            unsafe {
-                asm!(
-                    "mv {pc}, s2",
-                    "mv {sp}, s3",
-                    pc = out(reg) proc_pc,
-                    sp = out(reg) proc_sp
-                );
-            }
-            process_pause(proc_pc, proc_sp, 0); // cause 0, explicit yield
+            process_pause(pc, sp, 0); // cause 0, explicit yield
         }
         _ => {
             panic!("Uncaught system call: {}", a7);
@@ -56,7 +45,11 @@ pub extern "C" fn scall_rust(a0: usize, a1: usize, a2: usize, a3: usize,
 /// considered to have left the process, at least partially. This
 /// means that as of entering `scall_rust`, the process registers have
 /// been saved to the process stack, we are now in kernel space, the
-/// process pc is in s2, and the process sp is in s3
+/// process pc and sp should be passed through the HAL to the
+/// scall_rust_standard however makes sense.
+///
+/// This is a rare case of hardware independent code being directly
+/// called by hardware specific asm. This may be refactored
 #[no_mangle]
 pub extern "C" fn scall_direct(a0: usize, a1: usize, a2: usize, a3: usize,
                                a4: usize, a5: usize, a6: usize, a7: usize)
