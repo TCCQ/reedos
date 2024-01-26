@@ -39,7 +39,7 @@ pub fn hook(attr: TokenStream, item: TokenStream) -> TokenStream {
     // populate the above
     for arg in original_inputs.iter() {
         match arg.clone() {
-            FnArg::Receiver(self_ref) => {
+            FnArg::Receiver(_self_ref) => {
                 todo!("Hooks on methods with self");
                 // hook_inputs.push(self_ref.ty);
                 // original_input_names.push(Box::new(Pat::Verbatim(quote!(self))));
