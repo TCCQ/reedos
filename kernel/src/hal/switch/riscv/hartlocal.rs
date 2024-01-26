@@ -6,7 +6,16 @@ use alloc::boxed::Box;
 
 use crate::process::Process;
 
-// utils
+
+pub struct GPInfo {
+    pub current_process: Process
+}
+
+impl GPInfo {
+    pub fn new(p: Process) -> Self {
+        GPInfo {current_process: p}
+    }
+}
 
 /// Read and write the hart local global pointer register. In kernel
 /// space we will be using it to point to hart local kernel
@@ -23,25 +32,6 @@ pub fn read_gp() -> u64 {
         asm!("mv {}, gp", out(reg) gp);
     }
     gp
-}
-
-/// What do we need to restore when returning from a process
-pub struct GPInfo {
-    pub current_process: Process,
-    // TODO consider moving the page table and the sp from the
-    // sscratch stack to here
-    //
-    // Currently we aren't doing that becuase we need(?) that info to
-    // boostrap this, which has stronger requirements about playing
-    // nice with rust
-}
-
-impl GPInfo {
-    pub fn new(current_process: Process) -> Self {
-        Self {
-            current_process,
-        }
-    }
 }
 
 /// "Consumes" the global pointer info (most importantly the process)

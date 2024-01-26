@@ -1,7 +1,13 @@
 ### This file contains the entry code for the S mode entry from uboot
-### + opensbi. It replaces entry.s and _start, as those are roughly
-### handled by uboot / opensbi. The main thing we want to do is setup
-### the stacks / sscratch stacks
+### + opensbi. The main thing we want to do is setup the stacks /
+### sscratch stacks.
+###
+### TODO can we do this in a way that doesn't depend on linkerscript
+### vars? I don't really want to do section discovery by walking the
+### device tree in asm.
+###
+### TODO save the device tree somewhere. (do we need to protect some
+### region of memory for that?)
 
         .option norvc
         .section .text.entry

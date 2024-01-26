@@ -7,7 +7,7 @@ use core::assert;
 use core::arch::asm;
 
 use crate::vm::*;
-use crate::hal::*;                   // virt/hal stuff
+use crate::hal::vm::*;                   // virt/hal stuff
 
 pub const VA_TOP: usize = 1 << (27 + 12); // 2^27 VPN + 12 Offset
 pub const PTE_TOP: usize = 512; // 4Kb / 8 byte PTEs = 512 PTEs / page!

@@ -6,7 +6,10 @@ use core::ptr::copy_nonoverlapping;
 use core::cell::OnceCell;
 use core::cell::LazyCell;
 
-use crate::hal::*;
+use crate::hal::vm::*;
+use crate::hal::layout::*;
+use crate::hal::switch::*;
+use crate::hal::discover::NHART;
 use crate::vm::VmError;
 use crate::vm::{request_phys_page, PhysPageExtent};
 use crate::file::elf64::*;
@@ -49,7 +52,7 @@ pub fn init_process_structure() {
 //
 // this is a *MOVE* of the process. Handle elsewhere
 fn get_running_process() -> Process {
-    HAL::restore_gp_info().current_process
+    restore_gp_info().current_process
 }
 
 #[derive(Debug)]
@@ -110,7 +113,7 @@ impl Process {
         let out = Self {
             id: 0,
             state: ProcessState::Uninitialized,
-            pgtbl: match HAL::pgtbl_new_empty() {
+            pgtbl: match pgtbl_new_empty() {
                 Ok(p) => p,
                 Err(_) => return Err(ProcError::OOM),
             },
@@ -127,14 +130,14 @@ impl Process {
         match self.state {
             ProcessState::Uninitialized => {
                 self.id = unsafe {PID_COUNTER.lock().generate()};
-                self.pgtbl = match HAL::pgtbl_new_empty() {
+                self.pgtbl = match pgtbl_new_empty() {
                     Ok(p) => p,
                     Err(_) => return Err(ELFError::FailedAlloc),
                 };
                 self.phys_pages.write(VecDeque::new());
                 // phys_pages DOES NOT include the pagetable. The
                 // pagetable is floating memory, and MUST be cleaned
-                // up with HAL::pgtbl_free
+                // up with pgtbl_free
             },
             ProcessState::Running => {
                 panic!("Tried to re-initialize a running process!");
@@ -160,36 +163,36 @@ impl Process {
 
         // same closure trick as the main kernel mapping to collect errors
         let map_kernel = || {
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 self.pgtbl,
-                HAL::text_start() as VirtAddress,
-                HAL::text_start() as PhysAddress,
-                HAL::text_end().addr() - HAL::text_start().addr(),
+                text_start() as VirtAddress,
+                text_start() as PhysAddress,
+                text_end().addr() - text_start().addr(),
                 kernel_process_flags(true, false, true)
             )?;
 
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 self.pgtbl,
-                HAL::text_end(),
-                HAL::text_end() as *mut usize,
-                HAL::rodata_end().addr() - HAL::text_end().addr(),
+                text_end(),
+                text_end() as *mut usize,
+                rodata_end().addr() - text_end().addr(),
                 kernel_process_flags(true, false, false),
             )?;
 
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 self.pgtbl,
-                HAL::rodata_end(),
-                HAL::rodata_end() as *mut usize,
-                HAL::data_end().addr() - HAL::rodata_end().addr(),
+                rodata_end(),
+                rodata_end() as *mut usize,
+                data_end().addr() - rodata_end().addr(),
                 kernel_process_flags(true, true, false),
             )?;
 
             // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
             // problem.
-            let base = HAL::stacks_start();
-            for s in 0..HAL::NHART {
+            let base = stacks_start();
+            for s in 0..NHART {
                 let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * 3)) };
-                HAL::pgtbl_insert_range(
+                pgtbl_insert_range(
                     self.pgtbl,
                     stack,
                     stack,
@@ -200,11 +203,11 @@ impl Process {
 
             // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
             // problem.
-            let base = HAL::intstacks_start();
-            for i in 0..HAL::NHART {
+            let base = intstacks_start();
+            for i in 0..NHART {
                 let m_intstack = unsafe { base.byte_add(PAGE_SIZE * (1 + i * 4)) };
                 // Map hart i m-mode handler.
-                HAL::pgtbl_insert_range(
+                pgtbl_insert_range(
                     self.pgtbl,
                     m_intstack,
                     m_intstack,
@@ -213,7 +216,7 @@ impl Process {
                 )?;
                 // Map hart i s-mode handler
                 let s_intstack = unsafe { m_intstack.byte_add(PAGE_SIZE * 2) };
-                HAL::pgtbl_insert_range(
+                pgtbl_insert_range(
                     self.pgtbl,
                     s_intstack,
                     s_intstack,
@@ -222,19 +225,19 @@ impl Process {
                 )?;
             }
 
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 self.pgtbl,
-                HAL::bss_start(),
-                HAL::bss_start(),
-                HAL::bss_end().addr() - HAL::bss_start().addr(),
+                bss_start(),
+                bss_start(),
+                bss_end().addr() - bss_start().addr(),
                 kernel_process_flags(true, true, false),
             )?;
 
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 self.pgtbl,
-                HAL::bss_end(),
-                HAL::bss_end(),
-                HAL::memory_end().addr() - HAL::bss_end().addr(),
+                bss_end(),
+                bss_end(),
+                memory_end().addr() - bss_end().addr(),
                 kernel_process_flags(true, true, false),
             )?;
             Ok::<(), HALVMError>(())
@@ -265,8 +268,8 @@ impl Process {
             let segment = unsafe { *ptr.add(i as usize) };
             if segment.seg_type != ProgramSegmentType::Load { continue; }
             else if segment.vmem_addr < 0x1000  { return Err(ELFError::MappedZeroPage) }
-            else if segment.vmem_addr >= HAL::text_start().addr() as u64 &&
-                segment.vmem_addr <= HAL::text_end().addr() as u64 {
+            else if segment.vmem_addr >= text_start().addr() as u64 &&
+                segment.vmem_addr <= text_end().addr() as u64 {
                     return Err(ELFError::MappedKernelText)
                 }
             else if segment.size_in_file != segment.size_in_memory {return Err(ELFError::InequalSizes)}
@@ -288,7 +291,7 @@ impl Process {
                 (segment.flags as u16) & PROG_SEG_EXEC != 0
             );
 
-            match HAL::pgtbl_insert_range(
+            match pgtbl_insert_range(
                 self.pgtbl,
                 VirtAddress::from(segment.vmem_addr as *mut usize),
                 PhysAddress::from(pages.start() as *mut usize),
@@ -316,10 +319,10 @@ impl Process {
         };
         // TODO guard page? you'll get a page fault anyway?
         let process_stack_location = unsafe {
-            HAL::text_start().sub(0x1000 * STACK_PAGES)
+            text_start().sub(0x1000 * STACK_PAGES)
         };
         // under the kernel text
-        match HAL::pgtbl_insert_range(
+        match pgtbl_insert_range(
             self.pgtbl,
             VirtAddress::from(process_stack_location),
             PhysAddress::from(stack_pages.start()),
@@ -364,8 +367,8 @@ impl Process {
         let saved_pc = self.saved_pc;
         let pgtbl_base = self.pgtbl.addr as usize;
         let saved_sp = self.saved_sp;
-        let gpi = <HAL as HALSwitch>::GPInfo::new(self);
-        HAL::save_gp_info(gpi);
+        let gpi = GPInfo::new(self);
+        save_gp_info(gpi);
 
         unsafe {
             // we can't use PageTable.write_satp here becuase this is
@@ -395,8 +398,8 @@ impl Process {
         let saved_pc = self.saved_pc;
         let pgtbl_base = self.pgtbl.addr as usize;
         let saved_sp = self.saved_sp;
-        let gpi = <HAL as HALSwitch>::GPInfo::new(self);
-        HAL::save_gp_info(gpi);
+        let gpi = GPInfo::new(self);
+        save_gp_info(gpi);
 
         unsafe {
             process_resume_asm(saved_pc, pgtbl_base, saved_sp);
@@ -414,7 +417,7 @@ impl Drop for Process {
         }
         unsafe { PID_COUNTER.lock().free(self.id); }
 
-        HAL::pgtbl_free(self.pgtbl);
+        pgtbl_free(self.pgtbl);
         // dropping the phys pages vector will automatically clean
         // those up
     }

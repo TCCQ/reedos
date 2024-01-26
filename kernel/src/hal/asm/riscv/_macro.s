@@ -1,4 +1,6 @@
 ### This file includes the asm macros we want to use in multiple files
+###
+### TODO currently this is just pasted into the one file we need it for
 
 
 .macro save_gp_regs

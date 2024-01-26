@@ -12,6 +12,52 @@ use core::arch::asm;
 use core::cell::OnceCell;
 use core::mem::size_of;
 
+// -------------------------------------------------------------------
+//
+// TODO this should be in terms of the thing below, BLK_DEV. This
+// should work, but doesn't really have any benefits. Just lets me not
+// think about Send/Sync static nonsense.
+use super::Block;
+
+pub type ProxyDev = ();
+pub static DEVICE: ProxyDev = ();
+
+impl super::HALIO for ProxyDev {
+    fn write_block(&self, blk: &mut Block) {
+                let mut status = 0xff_u8;
+                match blk_dev_ops(true, &mut status as *mut u8, blk) {
+                    Ok(_) => {
+                        while status == 0xff {}
+                        println!("Finished blk write.");
+                    },
+                    Err(_) => {log!(Error, "Failed to write block. Err code: {}", status); },
+                };
+    }
+    fn read_block(&self, blk: &mut Block) {
+                let mut status = 0xff_u8;
+                match blk_dev_ops(false, &mut status as *mut u8, blk) {
+                    Ok(_) => {
+                        while status == 0xff {}
+                    },
+                    Err(_) => {log!(Error, "Failed to read block. Err code: {}", status); },
+                };
+    }
+    fn io_setup(&self) {
+        match virtio_block_init() {
+            Ok(()) => {},
+            Err(s) => panic!("{}", s),
+        }
+    }
+    fn io_barrier(&self) {
+        io_barrier()
+    }
+    fn interrupt_respond(&self) {
+        virtio_blk_intr()
+    }
+}
+
+// -------------------------------------------------------------------
+
 static mut BLK_DEV: OnceCell<Mutex<SplitVirtQueue>> = OnceCell::new();
 
 // Also checkout: https://wiki.osdev.org/Virtio
@@ -259,32 +305,6 @@ struct VirtBlkReq {
     sector: u64,
 }
 
-use crate::hal::{Block, HALBlockRW};
-
-impl HALBlockRW for Block {
-    /// Blocking write to device. Spins on `status` until device sets it.
-    fn write(&mut self) {
-        let mut status = 0xff_u8;
-        match blk_dev_ops(true, &mut status as *mut u8, self) {
-            Ok(_) => {
-                while status == 0xff {}
-                println!("Finished blk write.");
-            },
-            Err(_) => {log!(Error, "Failed to write block. Err code: {}", status); },
-        };
-    }
-    /// Blocking read from device. Spins on `status` until device sets it.
-    fn read(&mut self) {
-        let mut status = 0xff_u8;
-        match blk_dev_ops(false, &mut status as *mut u8, self) {
-            Ok(_) => {
-                while status == 0xff {}
-            },
-            Err(_) => {log!(Error, "Failed to read block. Err code: {}", status); },
-        };
-    }
-}
-
 // ONLY Block Device Initialization: Sections 3.1 (general) + 4.2.3 (mmio)
 pub fn virtio_block_init() -> Result<(), &'static str> {
     // Step 0: Read device info.
@@ -404,7 +424,7 @@ fn blk_dev_ops(write: bool, status: *mut u8, buf: &mut Block) -> Result<(), &'st
         None => { return Err("Desc table full."); },
     };
     // Fill in Blk Req
-    let mut req = &mut sq.reqs[head_idx];
+    let req = &mut sq.reqs[head_idx];
     req.rtype = rtype;
     req.reserved = 0;
     req.sector = buf.offset / 512; // ** NOTICE HOW WE CALCULATE SECTORS WITH BYTE OFFSET**

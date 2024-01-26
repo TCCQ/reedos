@@ -1,5 +1,5 @@
 use crate::alloc::{boxed::Box, vec::Vec, vec, string::String};
-use crate::hal::{Block, HALBlockRW};
+use crate::hal::blockio::*;
 //use crate::vm::request_phys_page;
 use crate::fs::{EXT2_HINT, FsError, Hint};
 use core::mem::size_of;
@@ -122,7 +122,7 @@ impl Superblock {
     pub fn read() -> Result<Box<Self>, FsError> {
         let len = (size_of::<Self>() + 512) & !511; //Need to be multiple of 512 for blk dev.
         let mut buf: Vec<u8> = Vec::with_capacity(len);
-        let _ = Block::new(buf.as_mut_ptr(), len as u32, EXT2_START_SUPERBLOCK).unwrap().read();
+        let _ = read_block(&mut Block::new(buf.as_mut_ptr(), len as u32, EXT2_START_SUPERBLOCK).unwrap());
         let raw = buf.as_mut_ptr() as *mut Self;
         let sb = unsafe { *raw };
 
@@ -245,7 +245,7 @@ impl Inode {
         let mut buf = vec![0_u8; size_of::<Inode>() * 2];
         let index_off = (index * hint.inode_size as u32) as u64;
         let offset = (offset + index_off) & !511;
-        let _ = Block::new(buf.as_mut_ptr(), buf.capacity() as u32, offset).unwrap().read();
+        let _ = read_block(&mut Block::new(buf.as_mut_ptr(), buf.capacity() as u32, offset).unwrap());
         let raw_off = if index_off % 512 == 0 { 0 } else { hint.inode_size };
         //let raw = unsafe { (buf.start() as *mut Self).add(index as usize) }
         let raw = unsafe { buf.as_ptr().byte_add(raw_off as usize) as *mut Self };
@@ -279,7 +279,7 @@ impl Inode {
                 if nread >= buf_len { break; }
                 let buf_ptr = unsafe { buf_ptr.byte_add(nread as usize) };
                 let len = cmp::min(bsize, buf_len - nread);
-                let _ = Block::new(buf_ptr, len, (p*bsize) as u64).unwrap().read();
+                let _ = read_block(&mut Block::new(buf_ptr, len, (p*bsize) as u64).unwrap());
                 nread += bsize;
             }
         }
@@ -303,7 +303,7 @@ impl Inode {
         let mut ret = Vec::new();
         for p in self.direct_pointer {
             if p != 0 {
-                let _ = Block::new(buf.as_mut_ptr(), bsize as u32, (p * bsize as u32) as u64).unwrap().read();
+                let _ = read_block(&mut Block::new(buf.as_mut_ptr(), bsize as u32, (p * bsize as u32) as u64).unwrap());
                 let ptr = buf.as_mut_ptr();
                 let mut idx = 0;
                 while idx < bsize {

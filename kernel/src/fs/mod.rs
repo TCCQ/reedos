@@ -6,7 +6,7 @@ pub mod structs;
 
 use structs::*;
 use crate::alloc::{boxed::Box, vec::Vec, vec, string::{String, ToString}};
-use crate::hal::{Block, HALBlockRW};
+use crate::hal::blockio::*;
 use core::cell::OnceCell;
 use core::mem::size_of;
 
@@ -49,7 +49,7 @@ impl Hint {
         let cap = ((size_of::<BlockGroupDescriptor>() * num) + 512) & !511; //Need to be multiple of 512 for blk dev.
         let buf: Vec<u8> = vec![0; cap]; //Vec::with_capacity(cap);
         let mut buf = core::mem::ManuallyDrop::new(buf);
-        let _ = Block::new(buf.as_mut_ptr(), cap as u32, offset).unwrap().read();
+        let _ = read_block(&mut Block::new(buf.as_mut_ptr(), cap as u32, offset).unwrap());
         let mut buf = core::mem::ManuallyDrop::new(buf);
         let raw = buf.as_mut_ptr() as *mut BlockGroupDescriptor;
         unsafe { Vec::from_raw_parts(raw, num, cap) }

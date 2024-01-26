@@ -9,7 +9,9 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::cell::OnceCell;
 
 use crate::lock::mutex::Mutex;
-use crate::hal::*;
+use crate::hal::vm::*;
+use crate::hal::layout::*;
+use crate::hal::discover::*;
 use global::Galloc;
 use palloc::*;
 
@@ -69,7 +71,7 @@ pub enum VmError {
 /// TODO better error type
 pub fn global_init() -> Result<PageTable, ()> {
     unsafe {
-        match PAGEPOOL.set(PagePool::new(HAL::bss_end(), HAL::memory_end())) {
+        match PAGEPOOL.set(PagePool::new(bss_end(), memory_end())) {
             Ok(_) => {}
             Err(_) => {
                 panic!("vm double init.")
@@ -101,8 +103,8 @@ pub fn global_init() -> Result<PageTable, ()> {
 }
 
 pub fn local_init(pt: &PageTable) {
-    HAL::pgtbl_swap(pt);
-    HAL::kernel_pgtbl_late_setup(pt);
+    pgtbl_swap(pt);
+    kernel_pgtbl_late_setup(pt);
 }
 
 /// Create the kernel page table with 1:1 mappings to physical memory.
@@ -113,7 +115,7 @@ pub fn local_init(pt: &PageTable) {
 /// Finally map, the remaining physical memory to kernel virtual memory as
 /// the kernel 'heap'.
 pub fn kpage_init() -> Result<PageTable, VmError> {
-    let kpage_table = match HAL::pgtbl_new_empty() {
+    let kpage_table = match pgtbl_new_empty() {
         Ok(p) => p,
         Err(_) => {
             panic!("Could not allocate a kernel page table!");
@@ -125,41 +127,41 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
 
     // this closure lets us handle all of the error sources at once
     let map_pages = || -> Result<(), HALVMError> {
-        HAL::pgtbl_insert_range(
+        pgtbl_insert_range(
             kpage_table,
-            HAL::text_start(),
-            HAL::text_start(),
-            HAL::text_end().addr() - HAL::text_start().addr(),
+            text_start(),
+            text_start(),
+            text_end().addr() - text_start().addr(),
             PageMapFlags::Read | PageMapFlags::Execute
         )?;
         // log!(Debug, "Succesfully mapped kernel text into kernel pgtable...");
 
-        HAL::pgtbl_insert_range(
+        pgtbl_insert_range(
             kpage_table,
-            HAL::rodata_start(),
-            HAL::rodata_start() as *mut usize,
-            HAL::rodata_end().addr() - HAL::rodata_start().addr(),
+            rodata_start(),
+            rodata_start() as *mut usize,
+            rodata_end().addr() - rodata_start().addr(),
             PageMapFlags::Read
         )?;
         // log!(Debug, "Succesfully mapped kernel rodata into kernel pgtable...");
 
-        HAL::pgtbl_insert_range(
+        pgtbl_insert_range(
             kpage_table,
-            HAL::data_start(),
-            HAL::data_start() as *mut usize,
-            HAL::data_end().addr() - HAL::data_start().addr(),
+            data_start(),
+            data_start() as *mut usize,
+            data_end().addr() - data_start().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         // log!(Debug, "Succesfully mapped kernel data into kernel pgtable...");
 
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
         // problem.
-        let base = HAL::stacks_start();
-        let stack_and_guard_page_num = ((HAL::stacks_end() as usize - HAL::stacks_start() as usize) /
-                          (HAL::NHART * PAGE_SIZE));
-        for s in 0..HAL::NHART {
+        let base = stacks_start();
+        let stack_and_guard_page_num = (stacks_end() as usize - stacks_start() as usize) /
+                                        (NHART * PAGE_SIZE);
+        for s in 0..NHART {
             let stack = unsafe { base.byte_add(PAGE_SIZE * (1 + s * stack_and_guard_page_num)) };
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 kpage_table,
                 stack,
                 stack,
@@ -175,11 +177,11 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
 
         // This maps hart 0, 1 stack pages in opposite order as entry.S. Shouln't necessarily be a
         // problem.
-        let base = HAL::intstacks_start();
-        for i in 0..HAL::NHART {
+        let base = intstacks_start();
+        for i in 0..NHART {
             let m_intstack = unsafe { base.byte_add(PAGE_SIZE * (1 + i * 4)) };
             // Map hart i m-mode handler.
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 kpage_table,
                 m_intstack,
                 m_intstack,
@@ -188,7 +190,7 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             )?;
             // Map hart i s-mode handler
             let s_intstack = unsafe { m_intstack.byte_add(PAGE_SIZE * 2) };
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 kpage_table,
                 s_intstack,
                 s_intstack,
@@ -202,28 +204,28 @@ pub fn kpage_init() -> Result<PageTable, VmError> {
             // );
         }
 
-        HAL::pgtbl_insert_range(
+        pgtbl_insert_range(
             kpage_table,
-            HAL::bss_start(),
-            HAL::bss_start(),
-            HAL::bss_end().addr() - HAL::bss_start().addr(),
+            bss_start(),
+            bss_start(),
+            bss_end().addr() - bss_start().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         // log!(Debug, "Succesfully mapped kernel bss...");
 
-        HAL::pgtbl_insert_range(
+        pgtbl_insert_range(
             kpage_table,
-            HAL::bss_end(),
-            HAL::bss_end(),
-            HAL::memory_end().addr() - HAL::bss_end().addr(),
+            bss_end(),
+            bss_end(),
+            memory_end().addr() - bss_end().addr(),
             PageMapFlags::Read | PageMapFlags::Write
         )?;
         // log!(Debug, "Succesfully mapped kernel heap...");
 
         // finished all generic mappings, now do hardware mappings
-        let to_map = HAL::kernel_reserved_areas();
+        let to_map = kernel_reserved_areas();
         for (area, flags) in to_map {
-            HAL::pgtbl_insert_range(
+            pgtbl_insert_range(
                 kpage_table,
                 area.start(),
                 area.end(),
