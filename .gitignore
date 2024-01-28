@@ -11,6 +11,7 @@
 .idea/
 .direnv/
 *.swp
+*TAGS
 
 # Presentation stuff
 /docs/presentation/*
