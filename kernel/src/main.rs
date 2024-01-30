@@ -1,7 +1,6 @@
 //! minimal rust kernel built for (qemu virt machine) riscv.
 #![no_std]
 #![no_main]
-#![feature(pointer_byte_offsets)]
 #![feature(error_in_core)]
 #![feature(sync_unsafe_cell)]
 #![feature(panic_info_message)]
@@ -47,6 +46,7 @@ Mellow Swirled,
 
 use crate::lock::condition::ConditionVar;
 use crate::hal::*;
+use crate::hal::vm::PageTable;
 
 // sync init accross harts
 static mut GLOBAL_INIT_FLAG: MaybeUninit<ConditionVar> = MaybeUninit::uninit();
@@ -79,9 +79,18 @@ fn panic(info: &PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     // We only bootstrap on a single CPU.
-    HAL::isolate();
+    cpucontrol::isolate();
 
-    hal::HAL::global_setup();
+    discover::discover_setup();
+    serial::setup();
+    intexc::handler_setup();
+    intexc::local_setup();
+    layout::sections_setup();
+    switch::switch_setup();
+    // timers if we had them
+    hal::vm::pgtbl_setup();
+    blockio::io_setup();
+
     println!("{}", BANNER);
     log!(Info, "Bootstrapping on hart0...");
     match vm::global_init() {

@@ -2,9 +2,15 @@
 
 use core::fmt::{Write, Error};
 
-use crate::hal::*;
+use crate::hal::serial::put_string;
 use crate::lock::mutex::Mutex;
-// use crate::sbi_nputs;
+
+// TODO
+//
+// add failstate logging, for use with panics. (i.e. write the most
+// recent panic message to a fixed point in memory so we can read it
+// with a debugger if that issue is so bad that our printing doesn't
+// work) Not a priority
 
 /// Wrapper for the HAL provided serial console. Ensure atomicity and nice rust bindings
 pub static PRIMARY_SERIAL_PASS: Mutex<SerialPass> = Mutex::new(SerialPass {_ignore: ()});
@@ -15,7 +21,7 @@ pub struct SerialPass {
 
 impl Write for SerialPass {
     fn write_str(&mut self, out: &str) -> Result<(), Error> {
-        HAL::serial_put_string(out);
+        put_string(out);
         Ok(())
     }
 }

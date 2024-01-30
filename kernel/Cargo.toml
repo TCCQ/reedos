@@ -8,8 +8,17 @@ build = "build.rs"
 # and there should be exactly one of them enabled at a time. In theory
 # this should be enforced already.
 [features]
-default = ["hal-virt"]
-hal-virt = []
+default = ["virtio", "riscv", "riscv-opensbi", "riscv-linkerscript"]
+virtio = []
+riscv = []
+# ^ generally enables riscv specific stuff. I.e some asm macros and whatnot.
+riscv-opensbi = ["riscv", "riscv-linkerscript"]
+# ^ TODO this is not a true dep, we just aren't doing device descovery
+# yet, see opensbi _entry asm
+riscv-linkerscript = ["riscv"]
+# ^ TODO how to enforce that this actually matches when the
+# linkerscript is being used?
+
 
 [dependencies]
 bitflags = "2.3.2"
