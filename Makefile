@@ -36,7 +36,6 @@ target/riscv64gc-unknown-none-elf/debug/kernel: FORCE
 
 FORCE:
 
-
 # trailing slash
 KERNEL_PATH := target/riscv64gc-unknown-none-elf/debug/
 
@@ -117,5 +116,9 @@ clean:
 	make -C opensbi clean
 	make -C u-boot clean
 	rm -f fit/virt.itb \
+<<<<<<< HEAD
 		u-boot/.config \
 		${KERNEL_PATH}kernel.bin
+=======
+		u-boot/.config
+>>>>>>> fs-hal-ontop
