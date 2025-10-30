@@ -45,10 +45,7 @@ static mut KERNEL_PAGE_TABLE: OnceCell<PageTable> = OnceCell::new();
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     let default = format_args!("No message provided");
-    let msg = match info.message() {
-        Some(msg) => msg,
-        None => &default,
-    };
+    let msg = info.message();
     match info.location() {
         None => {
             println!("PANIC! {} at {}", msg, "No location provided");
@@ -182,7 +179,6 @@ fn main() -> ! {
         hartlocal::hartlocal_info_interrupt_stack_init();
         plic::local_init();
         log!(Info, "Completed all hart{} local initialization", read_tp());
-
     }
     
     // we want to test multiple processes with multiple harts
