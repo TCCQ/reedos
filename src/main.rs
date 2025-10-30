@@ -1,12 +1,9 @@
 //! minimal rust kernel built for (qemu virt machine) riscv.
 #![no_std]
 #![no_main]
-#![feature(pointer_byte_offsets)]
-#![feature(error_in_core)]
 #![feature(sync_unsafe_cell)]
-#![feature(panic_info_message)]
 #![feature(strict_provenance)]
-#![feature(unsized_fn_params)]
+// #![feature(unsized_fn_params)]  // TODO why did we have this?
 #![feature(box_into_inner)]
 #![feature(never_type)]
 #![allow(dead_code)]
@@ -44,7 +41,6 @@ static mut KERNEL_PAGE_TABLE: OnceCell<PageTable> = OnceCell::new();
 // The never type "!" means diverging function (never returns).
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    let default = format_args!("No message provided");
     let msg = info.message();
     match info.location() {
         None => {

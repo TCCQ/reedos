@@ -14,7 +14,7 @@ use core::cell::OnceCell;
 // use crate::trap::TrapFrame;
 use crate::vm::ptable::*;
 use crate::vm::VmError;
-use crate::hw::riscv::read_tp;
+// use crate::hw::riscv::read_tp;
 use crate::hw::param::*;
 use crate::vm::{request_phys_page, PhysPageExtent};
 use crate::file::elf64::*;

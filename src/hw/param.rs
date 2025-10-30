@@ -64,7 +64,7 @@ macro_rules! linker_var {
         extern "C" { static mut $linker_name: usize; }
         #[doc="Get the associated linker variable as a pointer"]
         pub fn $rust_name() -> *mut usize {
-            unsafe { addr_of_mut!($linker_name) }
+            addr_of_mut!($linker_name)
         }
     }
 }

@@ -409,7 +409,7 @@ fn blk_dev_ops(write: bool, status: *mut u8, buf: &mut Block) -> Result<(), &'st
         None => { return Err("Desc table full."); },
     };
     // Fill in Blk Req
-    let mut req = &mut sq.reqs[head_idx];
+    let req = &mut sq.reqs[head_idx];
     req.rtype = rtype;
     req.reserved = 0;
     req.sector = buf.offset;
